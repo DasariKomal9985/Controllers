@@ -5,7 +5,7 @@
 #define TFT_RST 8
 #define TFT_DC 7
 #define TFT_BL 9
-#define BUZZER_PIN 41
+#define BUZZER_PIN 42
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 unsigned long startTime = 0;
 int currentStage = 0;
