@@ -6,7 +6,7 @@
 #define TFT_RST  8
 #define TFT_DC   7
 #define TFT_BL   9
-#define LDR_PIN A11
+#define LDR_PIN A7
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
