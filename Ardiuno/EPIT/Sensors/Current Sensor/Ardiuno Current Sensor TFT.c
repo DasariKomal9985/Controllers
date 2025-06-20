@@ -10,7 +10,7 @@
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
-const int currentSensorPin = A10;
+const int currentSensorPin = A6;
 const float sensitivity = 0.185;
 float vRef = 2.5;
 
