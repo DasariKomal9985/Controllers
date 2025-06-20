@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-#define LDR_PIN A11
+#define LDR_PIN A7
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
