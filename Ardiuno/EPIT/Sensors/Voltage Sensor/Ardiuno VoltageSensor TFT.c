@@ -9,7 +9,7 @@
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
-const int voltagePin = A8;
+const int voltagePin = A5;
 const float referenceVoltage = 5.0;
 const float voltageDividerRatio = 5.0;
 const float minVoltage = 10.5;
