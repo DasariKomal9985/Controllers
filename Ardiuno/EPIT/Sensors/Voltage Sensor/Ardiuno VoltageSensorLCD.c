@@ -3,7 +3,7 @@
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-const int voltagePin = A4;
+const int voltagePin = A5;
 const float referenceVoltage = 5.0;
 const float voltageDividerRatio = 5.0;
 const float minVoltage = 10.5;
