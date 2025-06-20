@@ -4,7 +4,7 @@
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-const int currentSensorPin = A10;
+const int currentSensorPin = A6;
 const float sensitivity = 0.185;
 float vRef = 2.5;
 
