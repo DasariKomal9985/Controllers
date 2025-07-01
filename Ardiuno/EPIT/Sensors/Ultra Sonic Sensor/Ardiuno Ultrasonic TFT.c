@@ -5,8 +5,8 @@
 #define TFT_RST 8
 #define TFT_DC 7
 #define TFT_BL 9
-#define TRIG_PIN 23
-#define ECHO_PIN 22
+#define TRIG_PIN 48
+#define ECHO_PIN 49
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 const int baseY = 150;
 const int startX = 20;
