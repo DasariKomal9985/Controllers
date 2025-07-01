@@ -4,8 +4,8 @@
 #include <LiquidCrystal_I2C.h>
 
 
-#define TRIG_PIN 23
-#define ECHO_PIN 22
+#define TRIG_PIN 48
+#define ECHO_PIN 49
 
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
