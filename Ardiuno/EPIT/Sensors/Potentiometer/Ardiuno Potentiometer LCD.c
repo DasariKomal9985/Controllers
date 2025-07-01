@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-const int potPin = A4;
+const int potPin = A8;
 int potValue = 0;
 int mappedValue = 0;
 
