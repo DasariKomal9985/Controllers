@@ -10,7 +10,7 @@
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
-const int potPin = A4;
+const int potPin = A8;
 int potValue = 0;
 int mappedValue = 0;
 int lastValue = -1;
