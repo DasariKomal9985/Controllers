@@ -25,6 +25,7 @@ char keys[4][4] = {
 String inputSpeed = "";
 int speedValue = 0;
 String direction = "Stopped";
+bool showSlowWarning = false;
 
 void setup() {
   Wire.begin();
@@ -32,9 +33,11 @@ void setup() {
   digitalWrite(TFT_BL, HIGH);
   tft.init(240, 320);
   tft.setRotation(1);
+
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
+
   drawStaticLayout();
   updateDisplay();
 }
@@ -44,37 +47,52 @@ void loop() {
   if (key != 0) {
     if (key >= '0' && key <= '9') {
       if (inputSpeed.length() < 3) inputSpeed += key;
-    } else if (key == '*') {
-      direction = "ClockWise";
-      applySpeed();
-      moveClockwise();
-      inputSpeed = "";
-    } else if (key == '#') {
-      direction = "AntiClockWise";
-      applySpeed();
-      moveAntiClockwise();
-      inputSpeed = "";
-    } else if (key == 'A') {
-      direction = "Stopped Motor";
-      stopMotor();
-    } else if (key == 'C') {
-      inputSpeed = "";
-      stopMotor();
     }
+
+    else if (key == '*') {
+      if (speedValue > 0) {
+        direction = "ClockWise";
+        moveClockwise();
+      }
+    }
+
+    else if (key == '#') {
+      if (speedValue > 0) {
+        direction = "AntiClockWise";
+        moveAntiClockwise();
+      }
+    }
+
+    else if (key == 'A') {
+      speedValue = 50;
+      direction = "ClockWise";
+      moveClockwise();
+      analogWrite(ENA, speedValue);
+      inputSpeed = "";
+    }
+
+    else if (key == 'B') {
+      direction = "Stopped";
+      stopMotor();
+      inputSpeed = "";
+    }
+
+    else if (key == 'C') {
+      if (speedValue > 0 && inputSpeed.length() > 0) {
+        int newSpeed = inputSpeed.toInt();
+        if (newSpeed > 240) newSpeed = 240;
+        speedValue = newSpeed;
+        analogWrite(ENA, speedValue);
+        inputSpeed = "";
+
+        showSlowWarning = (speedValue > 230);
+      } else {
+        inputSpeed = "";
+      }
+    }
+
     updateDisplay();
     delay(200);
-  }
-}
-
-void applySpeed() {
-  speedValue = inputSpeed.toInt();
-  if (speedValue > 250) speedValue = 250;
-
-  if (speedValue < 50) {
-    stopMotor();
-    direction = "Stopped Motor";
-  } else {
-    analogWrite(ENA, speedValue);
   }
 }
 
@@ -102,21 +120,25 @@ void drawStaticLayout() {
   tft.setTextColor(ST77XX_BLACK);
   tft.setTextSize(3);
   tft.print("L298N Driver");
+
   tft.drawRect(10, 50, 310, 30, ST77XX_WHITE);
   tft.setCursor(14, 58);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.print("0-9 Speed   * - CW   # - ACW   C - Clear  A - Stop");
+  tft.print("0-9 Speed   * - CW   # - ACW   C - Set Speed  A - 50  B - Stop");
+
   tft.fillRect(10, 90, 220, 30, ST77XX_GREEN);
   tft.setCursor(15, 98);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(2);
   tft.print("Direction:");
+
   tft.fillRect(10, 130, 220, 30, ST77XX_GREEN);
   tft.setCursor(15, 138);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(2);
   tft.print("Speed:");
+
   tft.drawRect(10, 175, 300, 60, ST77XX_WHITE);
 }
 
@@ -131,19 +153,14 @@ void updateDisplay() {
   tft.setCursor(165, 138);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(2);
+
   if (inputSpeed.length() > 0) {
-    tft.setCursor(165, 138);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
     tft.print("     ");
     tft.setCursor(165, 138);
     tft.print(inputSpeed);
   } else {
     char speedStr[4];
     sprintf(speedStr, "%03d", speedValue);
-    tft.setCursor(165, 138);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
     tft.print("     ");
     tft.setCursor(165, 138);
     tft.print(speedStr);
@@ -151,11 +168,21 @@ void updateDisplay() {
 
   tft.fillRect(11, 176, 298, 58, ST77XX_BLACK);
 
-  if (direction == "Stopped Motor") {
+  if (speedValue >= 240) {
+    tft.setCursor(30, 195);
+    tft.setTextColor(ST77XX_MAGENTA);
+    tft.setTextSize(2);
+    tft.print("Max Speed Reached");
+  } else if (direction == "Stopped" || speedValue == 0) {
     tft.setCursor(20, 195);
     tft.setTextColor(ST77XX_RED);
     tft.setTextSize(3);
     tft.print("STOPPED MOTORS");
+  } else if (showSlowWarning) {
+    tft.setCursor(15, 195);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(2);
+    tft.print("Please Slow Down Motors");
   } else {
     int bars = map(speedValue, 0, 250, 0, 27);
     int xStart = 10;
@@ -172,25 +199,11 @@ void updateDisplay() {
         else if (speedValue <= 150) color = ST77XX_YELLOW;
         else if (speedValue <= 220) color = ST77XX_ORANGE;
         else if (speedValue > 230) color = ST77XX_RED;
-
         tft.fillRect(x, yBase - height, barWidth, height, color);
       } else {
         tft.fillRect(x, yBase - height, barWidth, height, ST77XX_BLACK);
         tft.drawRect(x, yBase - height, barWidth, height, ST77XX_WHITE);
       }
-    }
-
-    
-    if (speedValue > 230) {
-      tft.setCursor(15, 195);
-      tft.setTextColor(ST77XX_WHITE);
-      tft.setTextSize(2);
-      tft.print("Please Slow Down Motors");
-
-      delay(5000);  
-      stopMotor();
-      direction = "Stopped Motor";
-      updateDisplay();  
     }
   }
 }
