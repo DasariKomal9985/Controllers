@@ -15,18 +15,21 @@ char keys[4][4] = {
 #define IN2 45
 #define ENA 3
 
-String inputSpeed = "";
 int speedValue = 0;
 String direction = "Stopped";
+String inputSpeed = "";
+bool showMaxSpeed = false;
 
 void setup() {
   Wire.begin();
   Serial.begin(9600);
   lcd.init();
   lcd.backlight();
+
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
+
   lcd.setCursor(0, 0);
   lcd.print("L298N Driver Control");
   updateLCD();
@@ -37,50 +40,65 @@ void loop() {
   if (key != 0) {
     Serial.print("Key Pressed: ");
     Serial.println(key);
+
     if (key >= '0' && key <= '9') {
       inputSpeed += key;
-    } else if (key == '*') {
-      direction = "Clockwise";
-      applySpeed();
-      moveClockwise();
-      inputSpeed = "";
-    } else if (key == '#') {
-      direction = "AntiClockwise";
-      applySpeed();
-      moveAntiClockwise();
-      inputSpeed = "";
-    } else if (key == 'C') {
-      inputSpeed = "";
-      direction = "Stopped";
-      stopMotor();
+      if (inputSpeed.toInt() > 999) inputSpeed = "";
     }
+
+    else if (key == 'A') {
+      speedValue = 50;
+      direction = "Clockwise";
+      digitalWrite(IN1, HIGH);
+      digitalWrite(IN2, LOW);
+      analogWrite(ENA, speedValue);
+      showMaxSpeed = false;
+    }
+
+    else if (key == 'B') {
+      speedValue = 0;
+      direction = "Stopped";
+      digitalWrite(IN1, LOW);
+      digitalWrite(IN2, LOW);
+      analogWrite(ENA, 0);
+      showMaxSpeed = false;
+    }
+
+    else if (key == '*') {
+      if (speedValue > 0) {
+        direction = "Clockwise";
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+      }
+    }
+
+    else if (key == '#') {
+      if (speedValue > 0) {
+        direction = "AntiClockwise";
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
+      }
+    }
+
+    else if (key == 'C') {
+      if (speedValue > 0 && inputSpeed.length() > 0) {
+        int newSpeed = inputSpeed.toInt();
+        if (newSpeed > 240) newSpeed = 240;
+        speedValue = newSpeed;
+        analogWrite(ENA, speedValue);
+
+        if (speedValue == 240) {
+          showMaxSpeed = true;
+        } else {
+          showMaxSpeed = false;
+        }
+      }
+      inputSpeed = "";
+    }
+
     updateLCD();
     delay(200);
   }
-}
-
-void applySpeed() {
-  speedValue = inputSpeed.toInt();
-  if (speedValue > 255) speedValue = 255;
-  analogWrite(ENA, speedValue);
-  Serial.print("Speed set to: ");
-  Serial.println(speedValue);
-}
-
-void moveClockwise() {
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-}
-
-void moveAntiClockwise() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
-}
-
-void stopMotor() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  analogWrite(ENA, 0);
 }
 
 void updateLCD() {
@@ -88,14 +106,25 @@ void updateLCD() {
   lcd.print("Direction: ");
   lcd.print(direction);
   lcd.print("     ");
+
   lcd.setCursor(0, 2);
   lcd.print("Speed: ");
-  lcd.print(speedValue);
+  if (inputSpeed.length() > 0) {
+    lcd.print(inputSpeed.toInt());
+  } else {
+    lcd.print(speedValue);
+  }
   lcd.print("     ");
+
   lcd.setCursor(0, 3);
-  int bars = map(speedValue, 0, 255, 0, 20);
-  for (int i = 0; i < bars; i++) lcd.write(byte(255));
-  for (int i = bars; i < 20; i++) lcd.print(" ");
+  if (showMaxSpeed) {
+    lcd.print("Max Speed Reached   ");
+  } else {
+    int displaySpeed = (inputSpeed.length() > 0) ? inputSpeed.toInt() : speedValue;
+    int bars = map(displaySpeed, 0, 255, 0, 20);
+    for (int i = 0; i < bars; i++) lcd.write(byte(255));
+    for (int i = bars; i < 20; i++) lcd.print(" ");
+  }
 }
 
 char scanKeypad() {
