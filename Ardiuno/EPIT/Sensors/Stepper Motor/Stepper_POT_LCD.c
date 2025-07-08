@@ -10,107 +10,184 @@
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-volatile bool stepPinState = LOW;
+volatile bool stepState = false;
 volatile unsigned long stepDelay = 1000;
-volatile unsigned long lastToggleMicros = 0;
 
-unsigned long lastLCDUpdate = 0;
-unsigned long stepCounter = 0;
-bool motorEnabled = true;
-bool direction = true;
+bool motorRunning = false;
+bool directionClockwise = true;
 
-bool lastButtonState = HIGH;
-unsigned long buttonPressTime = 0;
-bool buttonHandled = false;
+bool buttonPressed = false;
+unsigned long pressStartTime = 0;
+int holdSeconds = 0;
+
+int motorSpeed = 0;
+int lastReportedHold = 0;
+
+byte fullBlock[8] = {
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111
+};
 
 void setup() {
+  Wire.begin();
+  lcd.init();
+  lcd.backlight();
+  lcd.createChar(0, fullBlock);
+
   pinMode(DIR_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
   pinMode(EN_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT);
 
-  digitalWrite(DIR_PIN, direction);
-  digitalWrite(EN_PIN, LOW);
+  digitalWrite(EN_PIN, HIGH);
+  digitalWrite(DIR_PIN, directionClockwise ? HIGH : LOW);
 
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print(" Stepper & Driver");
+  Serial.begin(9600);
 
-  Timer1.initialize(100);
+  Timer1.initialize(1000);
   Timer1.attachInterrupt(stepperISR);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Stepper Motor");
 }
 
 void loop() {
-  int potValue = analogRead(POT_PIN);
-  unsigned long now = millis();
+  handleButton();
+  handlePotentiometer();
 
-  bool buttonState = digitalRead(BUTTON_PIN);
-
-  if (lastButtonState == HIGH && buttonState == LOW) {
-    buttonPressTime = now;
-    buttonHandled = false;
-  }
-
-  if (lastButtonState == LOW && buttonState == HIGH) {
-    unsigned long pressDuration = now - buttonPressTime;
-
-    if (!buttonHandled) {
-      if (pressDuration >= 800) {
-        motorEnabled = !motorEnabled;
-        digitalWrite(EN_PIN, motorEnabled ? LOW : HIGH);
-      } else {
-        direction = !direction;
-        digitalWrite(DIR_PIN, direction);
-      }
-      buttonHandled = true;
-    }
-  }
-
-  lastButtonState = buttonState;
-
-  if (motorEnabled && potValue > 10 && potValue < 1000) {
-    stepDelay = map(potValue, 10, 1000, 2000, 300);
-  }
-
-  if (millis() - lastLCDUpdate > 200) {
-    lastLCDUpdate = millis();
-    updateLCD(potValue);
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate > 200) {
+    lastUpdate = millis();
+    updateLCD();
   }
 }
 
-void updateLCD(int potValue) {
-  lcd.setCursor(0, 1);
-  lcd.print("   Steps: ");
-  lcd.print(stepCounter);
-  lcd.print("     ");
+void handleButton() {
+  bool state = digitalRead(BUTTON_PIN);
 
-  lcd.setCursor(0, 2);
-  lcd.print("Direction: ");
-  lcd.print(direction ? "Clockwise   " : "Anticlock   ");
+  if (state == HIGH && !buttonPressed) {
+    buttonPressed = true;
+    pressStartTime = millis();
+    holdSeconds = 0;
+    lastReportedHold = 0;
+  }
 
-  lcd.setCursor(0, 3);
-  if (!motorEnabled) {
-    lcd.print("     MOTOR OFF       ");
-  } else if (potValue <= 10 || potValue >= 1000) {
-    lcd.print("    POT LIMIT REACHED");
-  } else {
-    int bars = map(potValue, 10, 1000, 0, 20);
-    for (int i = 0; i < 20; i++) {
-      lcd.setCursor(i, 3);
-      lcd.write(i < bars ? byte(255) : ' ');
+  if (buttonPressed && state == HIGH) {
+    unsigned long duration = millis() - pressStartTime;
+    int currentHold = duration / 1000;
+
+    if (currentHold > lastReportedHold) {
+      lastReportedHold = currentHold;
+      Serial.print("Holding for: ");
+      Serial.print(currentHold);
+      Serial.println(" sec");
     }
+  }
+
+  if (buttonPressed && state == LOW) {
+    holdSeconds = (millis() - pressStartTime) / 1000;
+
+    Serial.print("Button Released. Held for: ");
+    Serial.print(holdSeconds);
+    Serial.println(" sec");
+
+    if (holdSeconds >= 5) {
+      directionClockwise = !directionClockwise;
+      digitalWrite(DIR_PIN, directionClockwise ? HIGH : LOW);
+      Serial.print("Direction Changed to: ");
+      Serial.println(directionClockwise ? "Clockwise" : "AntiClockwise");
+    } else if (holdSeconds >= 2) {
+      motorRunning = !motorRunning;
+      digitalWrite(EN_PIN, motorRunning ? LOW : HIGH);
+      Serial.print("Motor State: ");
+      Serial.println(motorRunning ? "ON" : "OFF");
+    } else {
+      Serial.println("Ignored: Short press (<2s)");
+    }
+
+    buttonPressed = false;
+    holdSeconds = 0;
+    lastReportedHold = 0;
+  }
+}
+
+void handlePotentiometer() {
+  int potVal = analogRead(POT_PIN);
+  int newSpeed = map(potVal, 0, 1023, 2000, 300);
+
+  if (motorRunning && newSpeed != stepDelay) {
+    stepDelay = newSpeed;
+    Timer1.setPeriod(stepDelay);
   }
 }
 
 void stepperISR() {
-  if (!motorEnabled) return;
+  if (!motorRunning) return;
 
-  unsigned long now = micros();
-  if (now - lastToggleMicros >= stepDelay) {
-    lastToggleMicros = now;
-    stepPinState = !stepPinState;
-    digitalWrite(STEP_PIN, stepPinState);
-    if (stepPinState) stepCounter++;
+  digitalWrite(STEP_PIN, stepState);
+  stepState = !stepState;
+}
+
+void updateLCD() {
+  static int lastBars = -1;
+
+  lcd.setCursor(0, 0);
+  lcd.print("Stepper Motor      ");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Hold: ");
+  if (buttonPressed) {
+    lcd.print(lastReportedHold);
+    lcd.print(" sec       ");
+  } else {
+    lcd.print("-           ");
+  }
+
+  lcd.setCursor(0, 2);
+  lcd.print("Dir: ");
+  lcd.print(directionClockwise ? "Clockwise     " : "AntiClockwise ");
+
+  lcd.setCursor(0, 3);
+
+  if (!motorRunning) {
+    lcd.print("     MOTOR OFF     ");
+    lastBars = -1;
+    return;
+  }
+
+  int potVal = analogRead(POT_PIN);
+  motorSpeed = map(potVal, 0, 1023, 0, 255);
+
+  if (motorSpeed >= 240) {
+    if (lastBars != 255) {
+      lcd.setCursor(0, 3);
+      lcd.print(" Max Speed Reached ");
+      lastBars = 255;
+    }
+  } else if (motorSpeed <= 30) {
+    if (lastBars != 254) {
+      lcd.setCursor(0, 3);
+      lcd.print(" Low Limit Reached ");
+      lastBars = 254;
+    }
+  } else {
+    int bars = map(motorSpeed, 0, 255, 0, 20);
+    if (bars != lastBars) {
+      for (int i = 0; i < 20; i++) {
+        lcd.setCursor(i, 3);
+        if (i < bars)
+          lcd.write(byte(0));
+        else
+          lcd.print(" ");
+      }
+      lastBars = bars;
+    }
   }
 }
