@@ -3,10 +3,11 @@
 #include <Wire.h>
 #include <SPI.h>
 
-#define TFT_CS 53
-#define TFT_RST 8
-#define TFT_DC 7
-#define TFT_BL 9
+#define TFT_CS   53
+#define TFT_RST  8
+#define TFT_DC   7
+#define TFT_BL   9
+
 #define POT_PIN A8
 #define BUTTON_PIN 46
 #define IN1 44
@@ -15,83 +16,30 @@
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
-int speedValue = 0;
-int lastSpeedValue = -1;
-bool motorRunning = true;
-String direction = "Clockwise";
+bool motorRunning = false;
+bool directionClockwise = true;
+bool buttonPressed = false;
 
-bool buttonState = HIGH;
-bool lastButtonState = HIGH;
-unsigned long buttonPressTime = 0;
+unsigned long pressStartTime = 0;
+int holdSeconds = 0;
+int lastReportedHold = -1;
 
-int lastBarCount = -1;
+int motorSpeed = 0;
+int lastMotorSpeed = -1;
+bool lastMotorState = false;
 String lastDirection = "";
-bool lastMotorRunning = true;
 
-unsigned long warningStartTime = 0;
-bool warningActive = false;
-
-void updateDisplay(bool full = false) {
-  static int lastBarsDrawn = -1;
-  static bool lastStoppedShown = false;
-
-  if (full || direction != lastDirection) {
-    tft.fillRect(150, 90, 160, 30, ST77XX_BLACK);
-    tft.setCursor(155, 98);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.print(direction);
-  }
-
-  if (full || speedValue != lastSpeedValue || motorRunning != lastMotorRunning) {
-    tft.fillRect(150, 130, 160, 30, ST77XX_BLACK);
-    tft.setCursor(165, 138);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    char speedStr[4];
-    sprintf(speedStr, "%03d", motorRunning ? speedValue : 0);
-    tft.print(speedStr);
-  }
-
-  int bars = (motorRunning && speedValue <= 240) ? map(speedValue, 0, 250, 0, 27) : 0;
-
-  if (bars != lastBarsDrawn || full || motorRunning != lastMotorRunning) {
-    if (!motorRunning || speedValue > 240) {
-      if (!lastStoppedShown || full) {
-        tft.fillRect(11, 176, 298, 58, ST77XX_BLACK);
-        tft.setCursor(20, 195);
-        tft.setTextColor(ST77XX_RED);
-        tft.setTextSize(3);
-        tft.print("STOPPED MOTORS");
-        lastStoppedShown = true;
-      }
-    } else {
-      if (lastStoppedShown || full) {
-        tft.fillRect(11, 176, 298, 58, ST77XX_BLACK);
-      }
-      int xStart = 10, yBase = 234, barWidth = 9, barSpacing = 2, height = 58;
-      for (int i = 0; i < 27; i++) {
-        int x = xStart + i * (barWidth + barSpacing);
-        if (i < bars) {
-          uint16_t color = ST77XX_GREEN;
-          if (i >= 5)  color = ST77XX_YELLOW;
-          if (i >= 15) color = ST77XX_ORANGE;
-          if (i >= 22) color = ST77XX_RED;
-          tft.fillRect(x, yBase - height, barWidth, height, color);
-        } else {
-          tft.fillRect(x, yBase - height, barWidth, height, ST77XX_BLACK);
-          tft.drawRect(x, yBase - height, barWidth, height, ST77XX_WHITE);
-        }
-      }
-      lastStoppedShown = false;
-    }
-
-    lastBarsDrawn = bars;
-  }
-}
+void drawStaticLayout();
+void moveClockwise();
+void moveAntiClockwise();
+void applyMotor();
+void handleButton();
+void handlePotentiometer();
+void updateDisplay();
 
 void setup() {
   Wire.begin();
+  Serial.begin(9600);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
   tft.init(240, 320);
@@ -99,105 +47,179 @@ void setup() {
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT);
   drawStaticLayout();
   moveClockwise();
-  updateDisplay(true);
 }
 
 void loop() {
   handleButton();
-
-  int potValue = analogRead(POT_PIN);
-  speedValue = map(potValue, 0, 1023, 0, 250);
-
-  if (motorRunning && speedValue > 240) {
-    if (!warningActive) {
-      warningStartTime = millis();
-      warningActive = true;
-    } else if (millis() - warningStartTime >= 5000) {
-      motorRunning = false;
-      analogWrite(ENA, 0);
-      updateDisplay(true);
-      warningActive = false;
-    }
-  } else {
-    warningActive = false;
-  }
-
-  if (motorRunning && speedValue <= 240) {
-    analogWrite(ENA, speedValue);
-  } else if (!motorRunning) {
-    analogWrite(ENA, 0);
-  }
-
-  if (speedValue != lastSpeedValue || motorRunning != lastMotorRunning || direction != lastDirection) {
-    updateDisplay();
-    lastSpeedValue = speedValue;
-    lastMotorRunning = motorRunning;
-    lastDirection = direction;
-  }
-
-  delay(50);
-}
-
-void handleButton() {
-  buttonState = digitalRead(BUTTON_PIN);
-  static bool waitingForRelease = false;
-
-  if (buttonState == LOW && lastButtonState == HIGH) {
-    buttonPressTime = millis();
-    waitingForRelease = true;
-  }
-
-  if (buttonState == HIGH && lastButtonState == LOW && waitingForRelease) {
-    unsigned long pressDuration = millis() - buttonPressTime;
-    if (pressDuration >= 1000) {
-      motorRunning = !motorRunning;
-    } else {
-      if (direction == "Clockwise") moveAntiClockwise();
-      else moveClockwise();
-    }
-    updateDisplay(true);
-    waitingForRelease = false;
-  }
-
-  lastButtonState = buttonState;
+  handlePotentiometer();
+  updateDisplay();
 }
 
 void moveClockwise() {
-  direction = "Clockwise";
+  directionClockwise = true;
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
 }
 
 void moveAntiClockwise() {
-  direction = "AntiClockwise";
+  directionClockwise = false;
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
 }
 
+void applyMotor() {
+  if (motorRunning) {
+    if (directionClockwise) moveClockwise();
+    else moveAntiClockwise();
+    analogWrite(ENA, motorSpeed);
+  } else {
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    analogWrite(ENA, 0);
+  }
+}
+
+void handleButton() {
+  bool state = digitalRead(BUTTON_PIN);
+  if (state == HIGH && !buttonPressed) {
+    buttonPressed = true;
+    pressStartTime = millis();
+    holdSeconds = 0;
+    lastReportedHold = -1;
+  }
+  if (buttonPressed && state == HIGH) {
+    unsigned long duration = millis() - pressStartTime;
+    int currentHold = duration / 1000;
+    if (currentHold != lastReportedHold) {
+      lastReportedHold = currentHold;
+    }
+  }
+  if (buttonPressed && state == LOW) {
+    holdSeconds = (millis() - pressStartTime) / 1000;
+    if (holdSeconds >= 5) {
+      directionClockwise = !directionClockwise;
+      if (motorRunning) applyMotor();
+    } else if (holdSeconds >= 2) {
+      motorRunning = !motorRunning;
+      applyMotor();
+    }
+    buttonPressed = false;
+    holdSeconds = 0;
+    lastReportedHold = -1;
+  }
+}
+
+void handlePotentiometer() {
+  int potVal = analogRead(POT_PIN);
+  int newSpeed = map(potVal, 0, 1023, 0, 255);
+  if (motorRunning && newSpeed != motorSpeed) {
+    motorSpeed = newSpeed;
+    analogWrite(ENA, motorSpeed);
+  } else if (!motorRunning) {
+    analogWrite(ENA, 0);
+  }
+}
+
 void drawStaticLayout() {
   tft.fillScreen(ST77XX_BLACK);
-  tft.fillRect(10, 10, 310, 35, ST77XX_YELLOW);
-  tft.setCursor(20, 18);
+  tft.fillRect(0, 0, 320, 30, ST77XX_YELLOW);
   tft.setTextColor(ST77XX_BLACK);
-  tft.setTextSize(3);
+  tft.setTextSize(2);
+  tft.setCursor(80, 7);
   tft.print("L298N Driver");
-  tft.drawRect(10, 50, 310, 30, ST77XX_WHITE);
-  tft.setCursor(14, 58);
+  tft.drawRect(0, 35, 320, 40, ST77XX_WHITE);
+  tft.setCursor(10, 48);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.print("Short: CW/ACW | Long: ON/OFF");
-  tft.fillRect(10, 90, 220, 30, ST77XX_GREEN);
+  tft.print("2 Sec = ON/OFF   |   5 Sec = DIR CHANGE");
+  tft.drawRect(10, 90, 145, 35, ST77XX_WHITE);
   tft.setCursor(15, 98);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setTextSize(2);
-  tft.print("Direction:");
-  tft.fillRect(10, 130, 220, 30, ST77XX_GREEN);
-  tft.setCursor(15, 138);
+  tft.setTextSize(1);
+  tft.print("Hold Time");
+  tft.drawRect(165, 90, 145, 35, ST77XX_WHITE);
+  tft.drawRect(10, 135, 145, 35, ST77XX_WHITE);
+  tft.setCursor(15, 143);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setTextSize(2);
-  tft.print("Speed:");
-  tft.drawRect(10, 175, 300, 60, ST77XX_WHITE);
+  tft.setTextSize(1);
+  tft.print("Direction");
+  tft.drawRect(165, 135, 145, 35, ST77XX_WHITE);
+}
+
+void updateDisplay() {
+  static int prevHoldShown = -1;
+  if (lastReportedHold != prevHoldShown) {
+    tft.fillRect(170, 95, 130, 25, ST77XX_BLACK);
+    tft.setCursor(175, 102);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(2);
+    if (buttonPressed) {
+      tft.print(lastReportedHold);
+      tft.print("s");
+    } else {
+      tft.print("-");
+    }
+    prevHoldShown = lastReportedHold;
+  }
+
+  String currentDir = directionClockwise ? "Clockwise" : "AntiClock";
+  if (currentDir != lastDirection) {
+    tft.fillRect(170, 140, 130, 25, ST77XX_BLACK);
+    tft.setCursor(175, 147);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(2);
+    tft.print(currentDir);
+    lastDirection = currentDir;
+  }
+
+  int barY = 200;
+  int barH = 30;
+  int barX = 10;
+  int barW = 300;
+
+  if (motorRunning && motorSpeed != lastMotorSpeed) {
+    if (motorSpeed >= 240) {
+      tft.fillRect(barX, barY, barW, barH, ST77XX_BLACK);
+      tft.setCursor(60, barY + 5);
+      tft.setTextColor(ST77XX_RED);
+      tft.setTextSize(2);
+      tft.print("Max Limit Reached");
+    } else if (motorSpeed <= 30) {
+      tft.fillRect(barX, barY, barW, barH, ST77XX_BLACK);
+      tft.setCursor(60, barY + 5);
+      tft.setTextColor(ST77XX_ORANGE);
+      tft.setTextSize(2);
+      tft.print("Low Limit Reached");
+    } else {
+      int fillW = map(motorSpeed, 0, 255, 0, barW);
+      for (int x = 0; x < barW; x++) {
+        float ratio = (float)x / barW;
+        uint8_t r = ratio * 255;
+        uint8_t g = 255 - r;
+        uint8_t b = (1 - abs(0.5 - ratio) * 2) * 255;
+        uint16_t color = tft.color565(r, g, b);
+        for (int y = 0; y < barH; y++) {
+          if (x < fillW)
+            tft.drawPixel(barX + x, barY + y, color);
+          else
+            tft.drawPixel(barX + x, barY + y, ST77XX_BLACK);
+        }
+      }
+    }
+    lastMotorSpeed = motorSpeed;
+  }
+
+  if (!motorRunning && lastMotorState != motorRunning) {
+    tft.fillRect(barX, barY, barW, barH, ST77XX_BLACK);
+    tft.setCursor(100, barY + 5);
+    tft.setTextColor(ST77XX_RED);
+    tft.setTextSize(2);
+    tft.print("MOTOR OFF");
+    lastMotorSpeed = 0;
+  }
+
+  lastMotorState = motorRunning;
 }
