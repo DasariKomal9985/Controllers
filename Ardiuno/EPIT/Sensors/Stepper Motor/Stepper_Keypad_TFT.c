@@ -55,25 +55,57 @@ void loop() {
   if (key != 0) {
     if (key >= '0' && key <= '9') {
       if (inputSpeed.length() < 3) inputSpeed += key;
-    } else if (key == '*') {
-      direction = "ClockWise";
-      motorDirection = true;
-      applySpeed();
-    } else if (key == '#') {
-      direction = "AntiClockWise";
-      motorDirection = false;
-      applySpeed();
-    } else if (key == 'A') {
-      direction = "Stopped Motor";
-      stopMotor();
-    } else if (key == 'C') {
-      inputSpeed = "";
-      stopMotor();
     }
+
+    else if (key == 'A') {
+      speedValue = 50;
+      motorDirection = true;
+      direction = "ClockWise";
+      stepDelay = map(speedValue, 0, 250, 2000, 300);
+      motorEnabled = true;
+      digitalWrite(DIR_PIN, motorDirection);
+      digitalWrite(EN_PIN, LOW);
+      inputSpeed = "";
+    }
+
+    else if (key == 'B') {
+      stopMotor();
+      direction = "Stopped Motor";
+      inputSpeed = "";
+    }
+
+    else if (key == '*') {
+      motorDirection = true;
+      direction = "ClockWise";
+      digitalWrite(DIR_PIN, motorDirection);
+    }
+
+    else if (key == '#') {
+      motorDirection = false;
+      direction = "AntiClockWise";
+      digitalWrite(DIR_PIN, motorDirection);
+    }
+
+    else if (key == 'C') {
+      if (inputSpeed.length() > 0) {
+        int newSpeed = inputSpeed.toInt();
+        if (newSpeed > 240) newSpeed = 240;
+        speedValue = newSpeed;
+        if (speedValue >= 50) {
+          stepDelay = map(speedValue, 0, 250, 2000, 300);
+          motorEnabled = true;
+          digitalWrite(DIR_PIN, motorDirection);
+          digitalWrite(EN_PIN, LOW);
+        }
+      }
+      inputSpeed = "";
+    }
+
     updateDisplay();
     delay(200);
   }
 }
+
 
 void applySpeed() {
   speedValue = inputSpeed.toInt();
