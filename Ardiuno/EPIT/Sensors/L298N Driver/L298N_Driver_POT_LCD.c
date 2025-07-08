@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <TimerOne.h>
 
 #define IN1 44
 #define IN2 45
@@ -9,16 +10,16 @@
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-int speedValue = 0;
-int lastSpeedValue = -1;
-String direction = "Clockwise";
-bool motorRunning = true;
+bool motorRunning = false;
+bool directionClockwise = true;
 
-unsigned long buttonPressTime = 0;
-bool buttonState = HIGH;
-bool lastButtonState = HIGH;
+bool buttonPressed = false;
+unsigned long pressStartTime = 0;
+int holdSeconds = 0;
 
-int lastBarCount = -1;
+int motorSpeed = 0;
+int lastReportedHold = 0;
+volatile bool lcdNeedsUpdate = false;
 
 byte fullBlock[8] = {
   B11111,
@@ -35,99 +36,144 @@ void setup() {
   Wire.begin();
   lcd.init();
   lcd.backlight();
+  lcd.createChar(0, fullBlock);
 
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT);
 
-  lcd.createChar(0, fullBlock);
+  Serial.begin(9600);
+
+  Timer1.initialize(200000);
+  Timer1.attachInterrupt(triggerLCDUpdate);
+
   lcd.setCursor(0, 0);
-  lcd.print("L298N Potentiometer");
-
-  moveClockwise();
+  lcd.print("L298N Driver");
   updateLCD();
 }
 
 void loop() {
   handleButton();
+  handlePotentiometer();
 
-  int potValue = analogRead(POT_PIN);
-  speedValue = map(potValue, 0, 1023, 0, 255);
-
-  if (motorRunning) {
-    analogWrite(ENA, speedValue);
-  } else {
-    analogWrite(ENA, 0);
-  }
-
-  if (speedValue != lastSpeedValue) {
+  if (lcdNeedsUpdate) {
+    lcdNeedsUpdate = false;
     updateLCD();
-    lastSpeedValue = speedValue;
   }
+}
 
-  delay(100);
+void triggerLCDUpdate() {
+  lcdNeedsUpdate = true;
 }
 
 void handleButton() {
-  buttonState = digitalRead(BUTTON_PIN);
-  static bool waitingForRelease = false;
+  bool state = digitalRead(BUTTON_PIN);
 
-  if (buttonState == LOW && lastButtonState == HIGH) {
-    buttonPressTime = millis();
-    waitingForRelease = true;
+  if (state == HIGH && !buttonPressed) {
+    buttonPressed = true;
+    pressStartTime = millis();
+    holdSeconds = 0;
+    lastReportedHold = 0;
   }
 
-  if (buttonState == HIGH && lastButtonState == LOW && waitingForRelease) {
-    unsigned long pressDuration = millis() - buttonPressTime;
+  if (buttonPressed && state == HIGH) {
+    unsigned long duration = millis() - pressStartTime;
+    int currentHold = duration / 1000;
 
-    if (pressDuration >= 1000) {
-      motorRunning = !motorRunning;
-    } else {
-      if (direction == "Clockwise") {
-        moveAntiClockwise();
-      } else {
-        moveClockwise();
-      }
+    if (currentHold > lastReportedHold) {
+      lastReportedHold = currentHold;
+      Serial.print("Holding for: ");
+      Serial.print(currentHold);
+      Serial.println(" sec");
     }
-    updateLCD();
-    waitingForRelease = false;
   }
 
-  lastButtonState = buttonState;
+  if (buttonPressed && state == LOW) {
+    holdSeconds = (millis() - pressStartTime) / 1000;
+
+    Serial.print("Button Released. Held for: ");
+    Serial.print(holdSeconds);
+    Serial.println(" sec");
+
+    if (holdSeconds >= 5) {
+      directionClockwise = !directionClockwise;
+      Serial.print("Direction Changed to: ");
+      Serial.println(directionClockwise ? "Clockwise" : "AntiClockwise");
+
+      if (motorRunning) applyMotor();
+    } else if (holdSeconds >= 2) {
+      motorRunning = !motorRunning;
+      Serial.print("Motor State: ");
+      Serial.println(motorRunning ? "ON" : "OFF");
+      applyMotor();
+    } else {
+      Serial.println("Ignored: Short press (<2s)");
+    }
+
+    buttonPressed = false;
+    holdSeconds = 0;
+    lastReportedHold = 0;
+  }
 }
 
-void moveClockwise() {
-  direction = "Clockwise";
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
+void handlePotentiometer() {
+  int potVal = analogRead(POT_PIN);
+  int newSpeed = map(potVal, 0, 1023, 0, 255);
+
+  if (motorRunning && newSpeed != motorSpeed) {
+    motorSpeed = newSpeed;
+    analogWrite(ENA, motorSpeed);
+  } else if (!motorRunning) {
+    analogWrite(ENA, 0);
+  }
 }
 
-void moveAntiClockwise() {
-  direction = "AntiClock";
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
+void applyMotor() {
+  if (motorRunning) {
+    digitalWrite(IN1, directionClockwise ? HIGH : LOW);
+    digitalWrite(IN2, directionClockwise ? LOW : HIGH);
+    analogWrite(ENA, motorSpeed);
+  } else {
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    analogWrite(ENA, 0);
+  }
 }
 
 void updateLCD() {
+  lcd.setCursor(0, 0);
+  lcd.print("L298N Driver       ");
+
   lcd.setCursor(0, 1);
-  lcd.print("Direction: ");
-  lcd.print(direction);
-  lcd.print("     ");
+  lcd.print("Holding: ");
+  if (buttonPressed) {
+    lcd.print(lastReportedHold);
+    lcd.print(" sec       ");
+  } else {
+    lcd.print("-           ");
+  }
 
   lcd.setCursor(0, 2);
-  lcd.print("Speed: ");
-  lcd.print(motorRunning ? speedValue : 0);
-  lcd.print("     ");
+  lcd.print("Dir: ");
+  lcd.print(directionClockwise ? "Clockwise     " : "AntiClockwise ");
 
-  int barCount = map(motorRunning ? speedValue : 0, 0, 255, 0, 20);
+  lcd.setCursor(0, 3);
+  if (!motorRunning) {
+    lcd.print("                    ");
+    return;
+  }
 
-  for (int i = 0; i < 20; i++) {
-    lcd.setCursor(i, 3);
-    if (i < barCount) {
-      lcd.write(byte(0));
-    } else {
-      lcd.print(" ");
+  if (motorSpeed >= 240) {
+    lcd.print("Max Speed Reached ");
+  } else if (motorSpeed <= 30) {
+    lcd.print("Low Limit Reached ");
+  } else {
+    int bars = map(motorSpeed, 0, 255, 0, 20);
+    for (int i = 0; i < 20; i++) {
+      lcd.setCursor(i, 3);
+      if (i < bars) lcd.write(byte(0));
+      else lcd.print(" ");
     }
   }
 }
