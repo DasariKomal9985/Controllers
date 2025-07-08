@@ -22,14 +22,13 @@ volatile bool stepPinState = LOW;
 volatile unsigned long lastToggleMicros = 0;
 
 int speedValue = 0;
-int lastBars = -1;  
+int lastBars = -1;
 int lastSpeedValue = -1;
 String direction = "Stopped";
 String lastDirection = "";
 bool motorEnabled = false;
 bool dirState = true;
 
-unsigned long stepCount = 0;
 unsigned long lastLCDUpdate = 0;
 
 void setup() {
@@ -56,50 +55,60 @@ void loop() {
   if (key != 0) {
     if (key >= '0' && key <= '9') {
       if (inputSpeed.length() < 3) inputSpeed += key;
-    } else if (key == '*') {
-      direction = "Clockwise";
-      dirState = true;
-      applySpeed();
-    } else if (key == '#') {
-      direction = "AntiClockwise";
-      dirState = false;
-      applySpeed();
-    } else if (key == 'A') {
-      direction = "Stopped";
-      motorEnabled = false;
-      digitalWrite(EN_PIN, HIGH);
-    } else if (key == 'C') {
-      inputSpeed = "";
-      direction = "Stopped";
-      motorEnabled = false;
-      digitalWrite(EN_PIN, HIGH);
     }
 
-    digitalWrite(DIR_PIN, dirState);
-    updateLCD(true);  // 
+    else if (key == 'A') {
+      speedValue = 50;
+      dirState = true;
+      direction = "Clockwise";
+      stepDelay = map(speedValue, 20, 300, 2000, 300);
+      motorEnabled = true;
+      digitalWrite(DIR_PIN, dirState);
+      digitalWrite(EN_PIN, LOW);
+      inputSpeed = "";
+    }
+
+    else if (key == 'B') {
+      motorEnabled = false;
+      direction = "Stopped";
+      digitalWrite(EN_PIN, HIGH);
+      inputSpeed = "";
+    }
+
+    else if (key == '*') {
+      dirState = true;
+      direction = "Clockwise";
+      digitalWrite(DIR_PIN, dirState);
+    }
+
+    else if (key == '#') {
+      dirState = false;
+      direction = "AntiClockwise";
+      digitalWrite(DIR_PIN, dirState);
+    }
+
+    else if (key == 'C') {
+      if (inputSpeed.length() > 0) {
+        int newSpeed = inputSpeed.toInt();
+        if (newSpeed > 240) newSpeed = 240;
+        speedValue = newSpeed;
+        if (speedValue >= 20) {
+          stepDelay = map(speedValue, 20, 300, 2000, 300);
+          motorEnabled = true;
+          digitalWrite(EN_PIN, LOW);
+        }
+      }
+      inputSpeed = "";
+    }
+
+    updateLCD(true);
     delay(200);
   }
 
   if (millis() - lastLCDUpdate > 300) {
     lastLCDUpdate = millis();
-    updateLCD(false);  // 
+    updateLCD(false);
   }
-}
-
-void applySpeed() {
-  speedValue = inputSpeed.toInt();
-  if (speedValue > 300) speedValue = 300;
-
-  if (speedValue < 20) {
-    direction = "Stopped";
-    motorEnabled = false;
-    digitalWrite(EN_PIN, HIGH);
-  } else {
-    stepDelay = map(speedValue, 20, 300, 2000, 300);
-    motorEnabled = true;
-    digitalWrite(EN_PIN, LOW);
-  }
-  inputSpeed = "";
 }
 
 void updateLCD(bool force) {
@@ -126,7 +135,7 @@ void updateLCD(bool force) {
   if (direction == "Stopped") {
     lcd.setCursor(0, 3);
     lcd.print("   MOTOR STOPPED    ");
-    lastBars = -1; 
+    lastBars = -1;
   } else {
     int bars = map(speedValue, 0, 300, 0, 20);
     if (bars != lastBars || force) {
@@ -147,7 +156,6 @@ void stepperISR() {
     lastToggleMicros = now;
     stepPinState = !stepPinState;
     digitalWrite(STEP_PIN, stepPinState);
-    if (stepPinState) stepCount++;
   }
 }
 
