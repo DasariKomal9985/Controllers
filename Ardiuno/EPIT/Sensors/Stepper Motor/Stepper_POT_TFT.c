@@ -69,8 +69,8 @@ void updateStepperSpeed() {
   int speed = map(potVal, 0, 1023, 2000, 200);
   Timer1.setPeriod(speed);
 }
-
 void handleButton() {
+  static bool longPressActionDone = false;
   bool state = digitalRead(BUTTON_PIN);
 
   if (state == HIGH && !buttonPressed) {
@@ -78,23 +78,31 @@ void handleButton() {
     pressStartTime = millis();
     holdSeconds = 0;
     lastReportedHold = -1;
+    longPressActionDone = false;
   }
 
   if (buttonPressed && state == HIGH) {
-    int currentHold = (millis() - pressStartTime) / 1000;
+    unsigned long duration = millis() - pressStartTime;
+    int currentHold = duration / 1000;
+
     if (currentHold != lastReportedHold) {
       lastReportedHold = currentHold;
+    }
+
+   
+    if (currentHold >= 2 && !longPressActionDone) {
+      directionClockwise = !directionClockwise;
+      digitalWrite(DIR_PIN, directionClockwise ? HIGH : LOW);
+      Serial.println("Direction toggled");
+      longPressActionDone = true;
     }
   }
 
   if (buttonPressed && state == LOW) {
-    int duration = (millis() - pressStartTime) / 1000;
+    unsigned long duration = millis() - pressStartTime;
 
-    if (duration >= 5) {
-      directionClockwise = !directionClockwise;
-      digitalWrite(DIR_PIN, directionClockwise ? HIGH : LOW);
-      Serial.println("Direction toggled");
-    } else if (duration >= 2) {
+    
+    if (duration >= 100 && !longPressActionDone) {
       motorRunning = !motorRunning;
       digitalWrite(EN_PIN, motorRunning ? LOW : HIGH);
       Serial.println("Motor toggled");
@@ -105,6 +113,7 @@ void handleButton() {
     lastReportedHold = -1;
   }
 }
+
 
 void drawStaticLayout() {
   tft.fillScreen(ST77XX_BLACK);
