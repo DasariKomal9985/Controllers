@@ -21,6 +21,8 @@ int motorSpeed = 0;
 int lastReportedHold = 0;
 volatile bool lcdNeedsUpdate = false;
 
+bool directionChangedThisPress = false;
+
 byte fullBlock[8] = {
   B11111,
   B11111,
@@ -75,6 +77,7 @@ void handleButton() {
     pressStartTime = millis();
     holdSeconds = 0;
     lastReportedHold = 0;
+    directionChangedThisPress = false;
   }
 
   if (buttonPressed && state == HIGH) {
@@ -87,6 +90,15 @@ void handleButton() {
       Serial.print(currentHold);
       Serial.println(" sec");
     }
+
+    if (duration >= 2000 && !directionChangedThisPress) {
+      directionClockwise = !directionClockwise;
+      directionChangedThisPress = true;
+      Serial.print("Direction Changed to: ");
+      Serial.println(directionClockwise ? "Clockwise" : "AntiClockwise");
+
+      if (motorRunning) applyMotor();
+    }
   }
 
   if (buttonPressed && state == LOW) {
@@ -96,19 +108,13 @@ void handleButton() {
     Serial.print(holdSeconds);
     Serial.println(" sec");
 
-    if (holdSeconds >= 5) {
-      directionClockwise = !directionClockwise;
-      Serial.print("Direction Changed to: ");
-      Serial.println(directionClockwise ? "Clockwise" : "AntiClockwise");
-
-      if (motorRunning) applyMotor();
-    } else if (holdSeconds >= 2) {
+    if ((millis() - pressStartTime) >= 100 && (millis() - pressStartTime) < 2000) {
       motorRunning = !motorRunning;
       Serial.print("Motor State: ");
       Serial.println(motorRunning ? "ON" : "OFF");
       applyMotor();
-    } else {
-      Serial.println("Ignored: Short press (<2s)");
+    } else if ((millis() - pressStartTime) < 100) {
+      Serial.println("Ignored: Very short press (<100ms)");
     }
 
     buttonPressed = false;
@@ -120,6 +126,11 @@ void handleButton() {
 void handlePotentiometer() {
   int potVal = analogRead(POT_PIN);
   int newSpeed = map(potVal, 0, 1023, 0, 255);
+
+  Serial.print("POT value: ");
+  Serial.print(potVal);
+  Serial.print(" → Speed: ");
+  Serial.println(newSpeed);
 
   if (motorRunning && newSpeed != motorSpeed) {
     motorSpeed = newSpeed;
