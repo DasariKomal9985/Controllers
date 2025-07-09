@@ -70,6 +70,7 @@ void loop() {
 }
 
 void handleButton() {
+  static bool longPressActionDone = false;
   bool state = digitalRead(BUTTON_PIN);
 
   if (state == HIGH && !buttonPressed) {
@@ -77,6 +78,7 @@ void handleButton() {
     pressStartTime = millis();
     holdSeconds = 0;
     lastReportedHold = 0;
+    longPressActionDone = false;
   }
 
   if (buttonPressed && state == HIGH) {
@@ -89,27 +91,27 @@ void handleButton() {
       Serial.print(currentHold);
       Serial.println(" sec");
     }
-  }
 
-  if (buttonPressed && state == LOW) {
-    holdSeconds = (millis() - pressStartTime) / 1000;
-
-    Serial.print("Button Released. Held for: ");
-    Serial.print(holdSeconds);
-    Serial.println(" sec");
-
-    if (holdSeconds >= 5) {
+    
+    if (currentHold >= 2 && !longPressActionDone) {
       directionClockwise = !directionClockwise;
       digitalWrite(DIR_PIN, directionClockwise ? HIGH : LOW);
       Serial.print("Direction Changed to: ");
       Serial.println(directionClockwise ? "Clockwise" : "AntiClockwise");
-    } else if (holdSeconds >= 2) {
+      longPressActionDone = true;
+    }
+  }
+
+  if (buttonPressed && state == LOW) {
+    unsigned long duration = millis() - pressStartTime;
+
+    if (duration >= 100 && !longPressActionDone) {
       motorRunning = !motorRunning;
       digitalWrite(EN_PIN, motorRunning ? LOW : HIGH);
       Serial.print("Motor State: ");
       Serial.println(motorRunning ? "ON" : "OFF");
-    } else {
-      Serial.println("Ignored: Short press (<2s)");
+    } else if (duration < 100) {
+      Serial.println("Ignored: <100ms tap");
     }
 
     buttonPressed = false;
@@ -117,6 +119,7 @@ void handleButton() {
     lastReportedHold = 0;
   }
 }
+
 
 void handlePotentiometer() {
   int potVal = analogRead(POT_PIN);
