@@ -3,10 +3,10 @@
 #include <Wire.h>
 #include <SPI.h>
 
-#define TFT_CS   53
-#define TFT_RST  8
-#define TFT_DC   7
-#define TFT_BL   9
+#define TFT_CS 53
+#define TFT_RST 8
+#define TFT_DC 7
+#define TFT_BL 9
 
 #define POT_PIN A8
 #define BUTTON_PIN 46
@@ -83,29 +83,40 @@ void applyMotor() {
 }
 
 void handleButton() {
+  static bool longPressActionDone = false;
   bool state = digitalRead(BUTTON_PIN);
+
   if (state == HIGH && !buttonPressed) {
     buttonPressed = true;
     pressStartTime = millis();
     holdSeconds = 0;
     lastReportedHold = -1;
+    longPressActionDone = false;
   }
+
   if (buttonPressed && state == HIGH) {
     unsigned long duration = millis() - pressStartTime;
     int currentHold = duration / 1000;
+
     if (currentHold != lastReportedHold) {
       lastReportedHold = currentHold;
     }
-  }
-  if (buttonPressed && state == LOW) {
-    holdSeconds = (millis() - pressStartTime) / 1000;
-    if (holdSeconds >= 5) {
+
+    if (currentHold >= 2 && !longPressActionDone) {
       directionClockwise = !directionClockwise;
       if (motorRunning) applyMotor();
-    } else if (holdSeconds >= 2) {
+      longPressActionDone = true;
+    }
+  }
+
+  if (buttonPressed && state == LOW) {
+    unsigned long holdDuration = millis() - pressStartTime;
+
+    if (holdDuration >= 100 && !longPressActionDone) {
       motorRunning = !motorRunning;
       applyMotor();
     }
+
     buttonPressed = false;
     holdSeconds = 0;
     lastReportedHold = -1;
