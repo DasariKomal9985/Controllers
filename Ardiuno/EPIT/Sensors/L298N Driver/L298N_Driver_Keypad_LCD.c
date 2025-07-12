@@ -5,17 +5,19 @@
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 char keys[4][4] = {
-  {'1', '2', '3', 'A'},
-  {'4', '5', '6', 'B'},
-  {'7', '8', '9', 'C'},
-  {'*', '0', '#', 'D'}
+  { '1', '2', '3', 'A' },
+  { '4', '5', '6', 'B' },
+  { '7', '8', '9', 'C' },
+  { '*', '0', '#', 'D' }
 };
 
 #define IN1 44
 #define IN2 45
 #define ENA 3
-
+int rampStep = 5;     
+int rampDelay = 100; 
 int speedValue = 0;
+int lastSpeed = 50;  
 String direction = "Stopped";
 String inputSpeed = "";
 bool showMaxSpeed = false;
@@ -47,13 +49,30 @@ void loop() {
     }
 
     else if (key == 'A') {
-      speedValue = 50;
-      direction = "Clockwise";
-      digitalWrite(IN1, HIGH);
-      digitalWrite(IN2, LOW);
-      analogWrite(ENA, speedValue);
-      showMaxSpeed = false;
+      if (speedValue == 0) {
+        speedValue = 50;
+        direction = "Clockwise";
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+
+        
+        for (int s = 50; s <= lastSpeed; s += 5) {
+          analogWrite(ENA, s);
+          speedValue = s;
+          updateLCD();
+          delay(100); 
+        }
+
+        showMaxSpeed = (lastSpeed >= 240);
+      } else {
+        
+        direction = "Clockwise";
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+        analogWrite(ENA, speedValue);
+      }
     }
+
 
     else if (key == 'B') {
       speedValue = 0;
@@ -81,17 +100,13 @@ void loop() {
     }
 
     else if (key == 'C') {
-      if (speedValue > 0 && inputSpeed.length() > 0) {
+      if (inputSpeed.length() > 0) {
         int newSpeed = inputSpeed.toInt();
         if (newSpeed > 240) newSpeed = 240;
         speedValue = newSpeed;
+        lastSpeed = newSpeed; 
         analogWrite(ENA, speedValue);
-
-        if (speedValue == 240) {
-          showMaxSpeed = true;
-        } else {
-          showMaxSpeed = false;
-        }
+        showMaxSpeed = (speedValue >= 240);
       }
       inputSpeed = "";
     }
