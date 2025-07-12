@@ -26,7 +26,7 @@ String inputSpeed = "";
 int speedValue = 0;
 String direction = "Stopped";
 bool showSlowWarning = false;
-
+int lastSpeed = 50;
 void setup() {
   Wire.begin();
   pinMode(TFT_BL, OUTPUT);
@@ -64,10 +64,24 @@ void loop() {
     }
 
     else if (key == 'A') {
-      speedValue = 50;
       direction = "ClockWise";
       moveClockwise();
-      analogWrite(ENA, speedValue);
+
+      int rampStep = 5;
+      int rampDelay = 100;
+
+      if (speedValue == 0) {
+        speedValue = 50;
+        for (int s = 50; s <= lastSpeed; s += rampStep) {
+          analogWrite(ENA, s);
+          speedValue = s;
+          updateDisplay();
+          delay(rampDelay);
+        }
+      } else {
+        analogWrite(ENA, speedValue);
+      }
+
       inputSpeed = "";
     }
 
@@ -82,6 +96,7 @@ void loop() {
         int newSpeed = inputSpeed.toInt();
         if (newSpeed > 240) newSpeed = 240;
         speedValue = newSpeed;
+        lastSpeed = newSpeed;
         analogWrite(ENA, speedValue);
         inputSpeed = "";
 
