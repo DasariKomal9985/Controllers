@@ -14,14 +14,15 @@ char keys[4][4] = {
 #define IN1 44
 #define IN2 45
 #define ENA 3
-int rampStep = 5;     
-int rampDelay = 100; 
+int rampStep = 5;
+int rampDelay = 100;
 int speedValue = 0;
-int lastSpeed = 50;  
+int lastSpeed = 50;
 String direction = "Stopped";
 String inputSpeed = "";
 bool showMaxSpeed = false;
-
+bool lastDirState = true;
+String lastDirection = "Clockwise";
 void setup() {
   Wire.begin();
   Serial.begin(9600);
@@ -51,30 +52,46 @@ void loop() {
     else if (key == 'A') {
       if (speedValue == 0) {
         speedValue = 50;
-        direction = "Clockwise";
-        digitalWrite(IN1, HIGH);
-        digitalWrite(IN2, LOW);
+        direction = lastDirection;
 
-        
-        for (int s = 50; s <= lastSpeed; s += 5) {
+        if (lastDirState) {
+          digitalWrite(IN1, HIGH);
+          digitalWrite(IN2, LOW);
+        } else {
+          digitalWrite(IN1, LOW);
+          digitalWrite(IN2, HIGH);
+        }
+
+        for (int s = 50; s <= lastSpeed; s += rampStep) {
           analogWrite(ENA, s);
           speedValue = s;
           updateLCD();
-          delay(100); 
+          delay(rampDelay);
         }
 
         showMaxSpeed = (lastSpeed >= 240);
       } else {
-        
-        direction = "Clockwise";
-        digitalWrite(IN1, HIGH);
-        digitalWrite(IN2, LOW);
+        direction = lastDirection;
+
+        if (lastDirState) {
+          digitalWrite(IN1, HIGH);
+          digitalWrite(IN2, LOW);
+        } else {
+          digitalWrite(IN1, LOW);
+          digitalWrite(IN2, HIGH);
+        }
+
         analogWrite(ENA, speedValue);
       }
     }
 
 
+
     else if (key == 'B') {
+      // Save direction BEFORE changing it to "Stopped"
+      lastDirState = (direction == "Clockwise");
+      lastDirection = direction;
+
       speedValue = 0;
       direction = "Stopped";
       digitalWrite(IN1, LOW);
@@ -88,14 +105,18 @@ void loop() {
         direction = "Clockwise";
         digitalWrite(IN1, HIGH);
         digitalWrite(IN2, LOW);
+        lastDirState = true;
+        lastDirection = direction;
       }
     }
 
     else if (key == '#') {
       if (speedValue > 0) {
-        direction = "AntiClockwise";
+        direction = "AntiClock";
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
+        lastDirState = false;
+        lastDirection = direction;
       }
     }
 
@@ -104,7 +125,7 @@ void loop() {
         int newSpeed = inputSpeed.toInt();
         if (newSpeed > 240) newSpeed = 240;
         speedValue = newSpeed;
-        lastSpeed = newSpeed; 
+        lastSpeed = newSpeed;
         analogWrite(ENA, speedValue);
         showMaxSpeed = (speedValue >= 240);
       }
