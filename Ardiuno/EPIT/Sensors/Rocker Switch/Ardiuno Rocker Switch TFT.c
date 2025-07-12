@@ -7,6 +7,7 @@
 #define TFT_DC 7
 #define TFT_BL 9
 #define SWITCH_PIN 41
+#define LED_PIN 33
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
@@ -16,7 +17,9 @@ void setup() {
   Serial.begin(9600);
   pinMode(SWITCH_PIN, INPUT_PULLUP);
   pinMode(TFT_BL, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
+  digitalWrite(LED_PIN, LOW);
 
   tft.init(240, 320);
   tft.setRotation(1);
@@ -34,6 +37,7 @@ void loop() {
     Serial.print("Switch State Changed: ");
     Serial.println(status);
     updateStatus(status);
+    digitalWrite(LED_PIN, switchState ? LOW : HIGH);
   }
   delay(100);
 }
@@ -64,12 +68,22 @@ void updateStatus(String statusText) {
   tft.setTextColor(ST77XX_BLACK);
   tft.print(statusText);
 
+
   tft.fillRect(10, 155, 100, 60, ST77XX_BLACK);
   tft.fillRect(210, 155, 100, 60, ST77XX_BLACK);
 
+
   if (statusText == "ON") {
-    tft.fillRect(210, 155, 100, 60, ST77XX_GREEN);
+    tft.fillRect(210, 155, 100, 60, ST77XX_RED);
+    tft.setCursor(220, 175);
+    tft.setTextSize(2);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.print("LED ON");
   } else {
-    tft.fillRect(10, 155, 100, 60, ST77XX_RED);
+    tft.fillRect(10, 155, 100, 60, ST77XX_GREEN);
+    tft.setCursor(20, 175);
+    tft.setTextSize(2);
+    tft.setTextColor(ST77XX_BLACK);
+    tft.print("LED OFF");
   }
 }
