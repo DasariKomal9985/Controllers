@@ -28,7 +28,9 @@ String direction = "Stopped";
 String lastDirection = "";
 bool motorEnabled = false;
 bool dirState = true;
-
+bool lastDirState = true;
+String lastDirName = "Clockwise";
+int lastSpeed = 50;
 unsigned long lastLCDUpdate = 0;
 
 void setup() {
@@ -58,15 +60,30 @@ void loop() {
     }
 
     else if (key == 'A') {
-      speedValue = 50;
-      dirState = true;
-      direction = "Clockwise";
-      stepDelay = map(speedValue, 20, 300, 2000, 300);
-      motorEnabled = true;
+      dirState = lastDirState;
+      direction = lastDirName;
       digitalWrite(DIR_PIN, dirState);
+      motorEnabled = true;
       digitalWrite(EN_PIN, LOW);
+
+      int rampStep = 5;
+      int rampDelay = 100;
+
+      if (speedValue == 0) {
+        for (int s = 50; s <= lastSpeed; s += rampStep) {
+          speedValue = s;
+          stepDelay = map(speedValue, 20, 300, 2000, 300);
+          delay(rampDelay);
+          updateLCD(true);
+        }
+      } else {
+        stepDelay = map(speedValue, 20, 300, 2000, 300);
+      }
+
       inputSpeed = "";
     }
+
+
 
     else if (key == 'B') {
       motorEnabled = false;
@@ -78,12 +95,16 @@ void loop() {
     else if (key == '*') {
       dirState = true;
       direction = "Clockwise";
+      lastDirState = dirState;
+      lastDirName = direction;
       digitalWrite(DIR_PIN, dirState);
     }
 
     else if (key == '#') {
       dirState = false;
       direction = "AntiClockwise";
+      lastDirState = dirState;
+      lastDirName = direction;
       digitalWrite(DIR_PIN, dirState);
     }
 
@@ -92,6 +113,9 @@ void loop() {
         int newSpeed = inputSpeed.toInt();
         if (newSpeed > 240) newSpeed = 240;
         speedValue = newSpeed;
+        lastSpeed = newSpeed;
+        lastDirState = dirState;
+        lastDirName = direction;
         if (speedValue >= 20) {
           stepDelay = map(speedValue, 20, 300, 2000, 300);
           motorEnabled = true;
