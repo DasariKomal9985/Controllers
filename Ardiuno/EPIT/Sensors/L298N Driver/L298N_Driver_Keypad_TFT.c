@@ -27,6 +27,8 @@ int speedValue = 0;
 String direction = "Stopped";
 bool showSlowWarning = false;
 int lastSpeed = 50;
+bool lastDirState = true;
+String lastDirection = "ClockWise";
 void setup() {
   Wire.begin();
   pinMode(TFT_BL, OUTPUT);
@@ -53,6 +55,8 @@ void loop() {
       if (speedValue > 0) {
         direction = "ClockWise";
         moveClockwise();
+        lastDirState = true;
+        lastDirection = direction;
       }
     }
 
@@ -60,12 +64,16 @@ void loop() {
       if (speedValue > 0) {
         direction = "AntiClockWise";
         moveAntiClockwise();
+        lastDirState = false;
+        lastDirection = direction;
       }
-    }
-
-    else if (key == 'A') {
-      direction = "ClockWise";
-      moveClockwise();
+    } else if (key == 'A') {
+      direction = lastDirection;
+      if (lastDirState) {
+        moveClockwise();
+      } else {
+        moveAntiClockwise();
+      }
 
       int rampStep = 5;
       int rampDelay = 100;
@@ -86,6 +94,8 @@ void loop() {
     }
 
     else if (key == 'B') {
+      lastDirState = (direction == "ClockWise");
+      lastDirection = direction;
       direction = "Stopped";
       stopMotor();
       inputSpeed = "";
