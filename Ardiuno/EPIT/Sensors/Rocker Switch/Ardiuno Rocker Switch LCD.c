@@ -2,6 +2,7 @@
 #include <LiquidCrystal_I2C.h>
 
 #define SWITCH_PIN 41
+#define LED_PIN 33
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -10,6 +11,9 @@ bool lastSwitchState = HIGH;
 void setup() {
   Serial.begin(9600);
   pinMode(SWITCH_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
   lcd.init();
   lcd.backlight();
   drawStaticLayout();
@@ -25,6 +29,7 @@ void loop() {
     Serial.print("Switch State Changed: ");
     Serial.println(status);
     updateStatus(status);
+    digitalWrite(LED_PIN, switchState ? LOW : HIGH);
   }
 
   delay(100);
@@ -44,14 +49,13 @@ void updateStatus(String statusText) {
   lcd.print("                    ");
   lcd.setCursor(0, 2);
   lcd.print(statusText);
-  lcd.setCursor(0, 3);
-  lcd.print("[ ]              [ ]");
 
-  if (statusText == "ON") {
-    lcd.setCursor(18, 3);
-    lcd.print("#");
-  } else {
-    lcd.setCursor(1, 3);
-    lcd.print("#");
-  }
+  lcd.setCursor(0, 3);
+  lcd.print("[");
+  lcd.setCursor(2, 3);
+  lcd.print("                ");
+  lcd.setCursor(2, 3);
+  lcd.print(statusText == "ON" ? "LED ON" : "LED OFF");
+  lcd.setCursor(19, 3);
+  lcd.print("]");
 }
