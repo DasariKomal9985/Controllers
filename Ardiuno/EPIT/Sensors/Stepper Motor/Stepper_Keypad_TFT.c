@@ -27,7 +27,9 @@ int speedValue = 0;
 String direction = "Stopped";
 bool motorEnabled = false;
 bool motorDirection = true;
-
+int lastSpeed = 100;              
+bool lastMotorDirection = true;   
+String lastDirection = "ClockWise";
 volatile bool stepPinState = LOW;
 volatile unsigned long stepDelay = 1000;
 volatile unsigned long lastToggleMicros = 0;
@@ -58,21 +60,31 @@ void loop() {
     }
 
     else if (key == 'A') {
-      speedValue = 50;
-      motorDirection = true;
-      direction = "ClockWise";
-      stepDelay = map(speedValue, 0, 250, 2000, 300);
-      motorEnabled = true;
+      motorDirection = lastMotorDirection;
+      direction = lastDirection;
       digitalWrite(DIR_PIN, motorDirection);
+      motorEnabled = true;
       digitalWrite(EN_PIN, LOW);
+
+      for (int s = 50; s <= lastSpeed; s += 10) {
+        speedValue = s;
+        stepDelay = map(speedValue, 0, 250, 2000, 300);
+        updateDisplay();
+        delay(50); 
+      }
+
       inputSpeed = "";
     }
 
     else if (key == 'B') {
+      lastSpeed = speedValue;
+      lastMotorDirection = motorDirection;
+      lastDirection = direction;
       stopMotor();
       direction = "Stopped Motor";
       inputSpeed = "";
     }
+
 
     else if (key == '*') {
       motorDirection = true;
