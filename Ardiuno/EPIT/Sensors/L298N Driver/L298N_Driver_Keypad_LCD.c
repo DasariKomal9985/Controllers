@@ -88,7 +88,7 @@ void loop() {
 
 
     else if (key == 'B') {
-      // Save direction BEFORE changing it to "Stopped"
+     
       lastDirState = (direction == "Clockwise");
       lastDirection = direction;
 
