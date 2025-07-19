@@ -2,7 +2,7 @@
 #include <LiquidCrystal_I2C.h>
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
-int relayPin = 47;
+int relayPin = 40;
 
 void setup() {
   pinMode(relayPin, OUTPUT);
