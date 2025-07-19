@@ -8,7 +8,7 @@
 #define TFT_BL   9
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
-#define relayPin 47
+#define relayPin 40
 
 void drawThickLine(int x1, int y1, int x2, int y2, uint16_t color) {
   tft.drawLine(x1, y1, x2, y2, color);
