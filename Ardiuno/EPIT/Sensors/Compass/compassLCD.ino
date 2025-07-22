@@ -80,7 +80,8 @@ void loop() {
     int z = mag_data.z;
 
     float heading = atan2((float)y, (float)x) * 180.0 / PI;
-    if (heading < 0) heading += 360.0;
+    heading = -heading;  // Invert heading
+      if (heading < 0) heading += 360.0;
 
     String direction;
     if (heading >= 337.5 || heading < 22.5) direction = "North";
