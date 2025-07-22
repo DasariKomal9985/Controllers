@@ -170,7 +170,8 @@ void setup() {
     tft.setTextSize(2);
     tft.setCursor(10, 10);
     tft.print("BMM150 Init Failed!");
-    while (1);
+    while (1)
+      ;
   }
 
   settings.pwr_mode = BMM150_POWERMODE_NORMAL;
@@ -186,8 +187,8 @@ void loop() {
     int16_t z = mag_data.z;
 
     float heading = atan2((float)y, (float)x) * 180.0 / PI;
+    heading = -heading;  // Invert heading
     if (heading < 0) heading += 360.0;
-    int heading_int = (int)heading;
 
     char dir[4] = "";
     float angle = heading;
