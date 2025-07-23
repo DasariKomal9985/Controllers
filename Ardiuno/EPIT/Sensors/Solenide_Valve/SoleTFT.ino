@@ -40,65 +40,55 @@ bool passcodeSet = false;
 bool relayActive = false;
 unsigned long relayStart = 0;
 int shutterY = 230;
-int shutterHeight = 120;
+int shutterHeight = 180;
 bool shutterDrawn = false;
-int shutterX = 200;
+int shutterX = 210;
 int shutterWidth = 100;
 int previousFillHeight = 0;
+bool isFirstTime = true;
+bool maskPasscode = false;
 
-void drawShutter(bool opening) {
-  int steps = 20;
-  int delayTime = 60;
-  int rollerBoxHeight = 20;
-  int runnerWidth = 6;
+void drawDoor(bool opening) {
+  int steps = 10;
+  int delayTime = 50;
 
-  tft.fillRoundRect(shutterX - 12, shutterY - shutterHeight - rollerBoxHeight - 4,
-                    shutterWidth + 25, rollerBoxHeight, 5, ST77XX_BROWN);
+  int doorX = shutterX;
+  int doorY = shutterY - shutterHeight;
+  int doorW = shutterWidth;
+  int doorH = shutterHeight;
+  int doorFrameThickness = 6;
+  int maxOpenShift = doorW / 4;
 
-  tft.fillRect(shutterX - runnerWidth, shutterY - shutterHeight,
-               runnerWidth, shutterHeight, ST77XX_BROWN);
-  tft.fillRect(shutterX + shutterWidth, shutterY - shutterHeight,
-               runnerWidth, shutterHeight, ST77XX_BROWN);
-
-  int previousFillHeight = opening ? shutterHeight : 0;
+  tft.fillRect(doorX - doorFrameThickness, doorY, doorFrameThickness, doorH, ST77XX_BROWN);
+  tft.fillRect(doorX + doorW, doorY, doorFrameThickness, doorH, ST77XX_BROWN);
+  tft.fillRect(doorX - doorFrameThickness, doorY - doorFrameThickness, doorW + doorFrameThickness * 2, doorFrameThickness, ST77XX_BROWN);
 
   for (int i = 0; i <= steps; i++) {
-    int fillHeight;
-    int yStart = shutterY - shutterHeight;
+    int shift = (opening ? (maxOpenShift * i / steps) : (maxOpenShift - (maxOpenShift * i / steps)));
+    tft.fillRect(doorX + doorW - shift, doorY, shift, doorH, ST77XX_BLACK);
+    tft.fillRect(doorX, doorY, doorW - shift, doorH, ST77XX_BLUE);
 
-    if (opening) {
-      fillHeight = shutterHeight - (shutterHeight * i) / steps;
-    } else {
-      fillHeight = (shutterHeight * i) / steps;
+    int panelTop = doorY + 10;
+    int panelBottom = doorY + doorH - 10;
+    int panelMidY1 = doorY + doorH / 3;
+    int panelMidY2 = doorY + 2 * doorH / 3;
+    int panelX = doorX + 10;
+    int panelWidth = doorW - shift - 20;
+
+    if (panelWidth > 0) {
+      tft.drawRect(panelX, panelTop, panelWidth, 30, ST77XX_BLACK);
+      tft.drawRect(panelX, panelMidY1, panelWidth, 30, ST77XX_BLACK);
+      tft.drawRect(panelX, panelMidY2, panelWidth, 30, ST77XX_BLACK);
     }
 
-    int delta = abs(fillHeight - previousFillHeight);
-    int yClear = opening ? (yStart + fillHeight) : (yStart + previousFillHeight);
-    tft.fillRect(shutterX, yClear, shutterWidth, delta, ST77XX_BLACK);
-
-    int slatHeight = 8;
-    int slatSpacing = 2;
-    int currentY = yStart + fillHeight - slatHeight;
-
-    while (currentY >= yStart) {
-      if (currentY + slatHeight <= yStart + fillHeight) {
-        tft.fillRect(shutterX, currentY, shutterWidth, slatHeight, ST77XX_PURPLE);
-        tft.drawLine(shutterX, currentY + slatHeight - 1,
-                     shutterX + shutterWidth, currentY + slatHeight - 1,
-                     ST77XX_BLACK);
-      }
-      currentY -= (slatHeight + slatSpacing);
+    if ((doorW - shift) > 20) {
+      int handleW = 10;
+      int handleH = 5;
+      int handleX = doorX + (doorW - shift - handleW) - 5;
+      int handleY = doorY + doorH / 2;
+      tft.fillRoundRect(handleX, handleY, handleW, handleH, 2, ST77XX_GRAY);
     }
 
-    if (fillHeight > 15) {
-      int handleWidth = 20;
-      int handleHeight = 8;
-      int handleX = shutterX + (shutterWidth - handleWidth) / 2;
-      int handleY = yStart + fillHeight - handleHeight - 4;
-      tft.fillRoundRect(handleX, handleY, handleWidth, handleHeight, 3, ST77XX_GRAY);
-    }
-
-    previousFillHeight = fillHeight;
     delay(delayTime);
   }
 }
@@ -127,23 +117,22 @@ void setup() {
 
 void loop() {
   char key = scanKeypad();
-
   if (key) {
+    Serial.println(key);
+
     if (key == 'C') {
       currentInput = "";
+      maskPasscode = !isFirstTime;
       updatePasscodeDisplay();
-    } else if (key >= '0' && key <= '9') {
-      if (currentInput.length() < 4) {
-        currentInput += key;
-        updatePasscodeDisplay();
-      }
     } else if (key == 'D') {
-      if (currentInput.length() == 4) {
+      if (currentInput.length() == 4 && isFirstTime) {
         storedPasscode = currentInput;
         passcodeSet = true;
-        currentInput = "";
+        isFirstTime = false;
+        maskPasscode = true;
         updatePasscodeDisplay();
         updateStatusDisplay("Passcode Set");
+        currentInput = "";
       } else {
         updateStatusDisplay("Enter 4 Digits");
       }
@@ -151,6 +140,8 @@ void loop() {
       if (!passcodeSet) {
         updateStatusDisplay("Set Pass First!");
       } else if (currentInput.length() == 4) {
+        maskPasscode = true;
+        updatePasscodeDisplay();
         if (currentInput == storedPasscode) {
           digitalWrite(RELAY_PIN, LOW);
           relayStart = millis();
@@ -160,14 +151,27 @@ void loop() {
           updateStatusDisplay("Wrong Pass");
         }
         currentInput = "";
-        updatePasscodeDisplay();
       } else {
         updateStatusDisplay("Enter 4 Digits");
+      }
+    } else if (key == 'B') {
+      storedPasscode = "";
+      currentInput = "";
+      passcodeSet = false;
+      isFirstTime = true;
+      maskPasscode = false;
+      updatePasscodeDisplay();
+      updateStatusDisplay("Reset Passcode");
+    } else if (key >= '0' && key <= '9') {
+      if (currentInput.length() < 4) {
+        currentInput += key;
+        maskPasscode = !isFirstTime;
+        updatePasscodeDisplay();
       }
     }
   }
 
-  if (relayActive && (millis() - relayStart >= 3000)) {
+  if (relayActive && millis() - relayStart >= 3000) {
     digitalWrite(RELAY_PIN, HIGH);
     relayActive = false;
     updateStatusDisplay("Door Closed");
@@ -181,39 +185,46 @@ void drawStaticUI() {
   tft.setTextSize(3);
   tft.println("Solenoid Valve");
 
-  tft.fillRoundRect(0, 45, 320, 40, 5, ST77XX_YELLOW);
+  tft.fillRoundRect(0, 45, 190, 40, 5, ST77XX_YELLOW);
   tft.setTextColor(ST77XX_RED);
-  tft.setCursor(20, 55);
+  tft.setCursor(5, 55);
   tft.setTextSize(2);
   tft.println("Enter Passcode:");
 
-  tft.drawRoundRect(0, 90, 150, 40, 5, ST77XX_WHITE);
+  tft.drawRoundRect(0, 140, 190, 40, 5, ST77XX_WHITE);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(20, 100);
+  tft.setCursor(50, 150);
   tft.println("Status:");
 }
 
 void updatePasscodeDisplay() {
-  tft.fillRect(200, 55, 50, 20, ST77XX_YELLOW);
+  tft.fillRoundRect(0, 90, 190, 40, 5, ST77XX_YELLOW);
   tft.setTextColor(ST77XX_PURPLE);
-  tft.setCursor(200, 55);
+  tft.setCursor(70, 110);
+
   if (currentInput.length() > 0) {
-    tft.print(currentInput);
+    if (maskPasscode) {
+      for (int i = 0; i < currentInput.length(); i++) {
+        tft.print("*");
+      }
+    } else {
+      tft.print(currentInput);
+    }
   } else {
     tft.print("____");
   }
 }
 
 void updateStatusDisplay(const char* msg) {
-  tft.fillRect(0, 135, 190, 40, ST77XX_BLACK);
+  tft.fillRect(0, 190, 190, 40, ST77XX_BLACK);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(10, 150);
+  tft.setCursor(10, 195);
   tft.print(msg);
 
   if (strcmp(msg, "Door Open") == 0) {
-    drawShutter(true);
+    drawDoor(true);
   } else if (strcmp(msg, "Door Closed") == 0) {
-    drawShutter(false);
+    drawDoor(false);
   }
 }
 
