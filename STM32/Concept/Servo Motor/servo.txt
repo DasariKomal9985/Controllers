@@ -1,0 +1,229 @@
+SERVO MOTOR CONTROL USING STM32
+
+To control a servo motor's position from 0° to 180° using STM32 PWM, generated through Timer configuration in STM32CubeIDE.
+
+Step 1: Create a New Project
+Open STM32CubeIDE
+File → New STM32 Project
+Choose STM32F401RBTx (or your MCU)
+Click Next, name the project: ServoPWM_STM32, then Finish
+
+Step 2: Enable RCC and Debug
+In Pinout & Configuration tab:
+Enable RCC (Reset and Clock Control):
+Go to System Core → RCC
+Enable High Speed Clock (HSE) → Crystal/Ceramic Resonator
+Enable SYS (for debugging):
+Go to System Core → SYS
+Set Debug Mode to Serial Wire (SWD)
+This ensures your MCU can be programmed and debugged via ST-Link.
+
+Step 3: Select Timer Pin for PWM
+Click on PA8 (or any PWM-supported pin from datasheet)
+Choose TIM1_CH1 (Alternate Function)
+
+
+
+🤔 Why use PWM and Timers?
+Servo motors are controlled by PWM (Pulse Width Modulation). You must generate a signal that:
+Has a fixed period of 20 ms (50 Hz)
+Varies pulse width between 500 µs (0°) and 2500 µs (180°)
+👉 This means your Timer must:
+Support PWM Output
+Have a resolution at microsecond level
+Be connected to a GPIO pin with alternate function TIMx_CHx
+
+
+Selecting the Right Timer from Datasheet:
+Open the STM32F401xB/C reference manual and datasheet:
+Go to the Alternate Function Table
+Example: Pin PA8 supports TIM1_CH1
+TIM1 is an Advanced Control Timer, supports PWM well.
+TIM2, TIM3, TIM4 are General-purpose timers (also OK).
+👉 In our case:
+ We’ll use TIM1_CH1 (PA8) for PWM generation.
+
+Timer Configuration in CubeMX (within CubeIDE)
+✅ Pin Configuration
+Go to Pinout
+Click on PA8 → Select TIM1_CH1
+✅ Clock Configuration (Auto)
+CubeIDE will auto-adjust the PLL settings for 84 MHz system clock.
+
+Parameter Value Why? 
+Prescaler : 83 : 84 MHz / (83+1) = 1 MHz → 1 µs per tick 
+Counter Period : 19999 : 20,000 µs → 20 ms → 50 Hz PWM 
+PWM Mode : PWM Generation CH1: Required to control pulse width 
+Pulse : 1500 : Default → servo center (90°)
+
+📌 You can find Prescaler and Period settings under Timers → TIM1 → Configuration → Parameter Settings
+
+
+Debugging the Output
+🧪 Servo Misbehaving? Check These:
+
+1. Power Supply
+Servo should be powered with 5V
+GND must be common between STM32 and Servo
+Don’t power servo directly from STM32 board
+
+2. Timer Not Outputting PWM?
+Add breakpoint after HAL_TIM_PWM_Start()
+Check PA8 with logic analyzer or oscilloscope
+Use __HAL_TIM_SET_COMPARE and watch if PWM value changes
+
+3. Timer Channel not configured correctly
+Make sure PA8 is Alternate Function TIM1_CH1
+Double-check Prescaler & Period
+
+
+
+
+🎯 What Is a Prescaler?
+A prescaler is like a gearbox for your timer clock.
+It slows down the timer input clock so the timer counts more slowly.
+
+🧠 Real-Life Analogy
+Imagine:
+The system clock is like a very fast ticking stopwatch (e.g., 84 million ticks per second = 84 MHz).
+But your timer doesn't need to count that fast.
+So we use a prescaler to reduce that speed — like using a fan regulator to slow down the speed of a fan.
+
+⚙️ Why Do We Need a Prescaler?
+Most microcontroller clocks (like STM32F401) run very fast — 84 MHz, meaning the timer would count from 0 to max (65535) in less than 1 ms.
+That’s too fast for applications like:
+Servo PWM (which needs 20ms period)
+Delays
+Frequency measurement
+So, we divide the clock frequency using a prescaler to make the timer slower and more useful.
+
+🧮 How It Works (Formula)
+🧾 Formula:
+Timer Clock = System Clock / Prescaler + 1
+
+If system clock = 84 MHz
+ And prescaler = 83
+ Then timer clock becomes:
+
+84MHz / 83+1 = 1MHz
+
+That means:
+Each timer tick = 1 microsecond
+So the timer now counts 1…2…3 every 1 µs
+Much more manageable!
+
+🔁 Without Prescaler (Prescaler = 0):
+84MHz​ / 1 = 84MHz
+Each timer tick is 1 / 84 million = 11.9 ns, too fast.
+
+✅ With Prescaler = 83:
+84MHz / 84 = 1MHz
+Each tick = 1 µs, perfect for things like:
+Servo (requires pulse from 1000–2000 µs)
+Delay
+Timers visible to humans
+
+In STM32 HAL:
+ htim2.Init.Prescaler = 83;
+( This sets the timer clock to 1 MHz (1 µs resolution). )
+
+
+🧠 What is the Counter Period?
+The Counter Period is the maximum value your timer counts up to before starting over.
+You can think of it as the "ceiling" value of the timer counter.
+
+🔁 What Happens in Timer Counting?
+If your timer is set to:
+Counts from 0 to N (Counter Period)
+Then resets to 0 and starts again
+0 → 1 → 2 → ... → N → 0 → 1 ...
+🧮 Formula for PWM Period
+Timer Period (in µs)=(Counter Period+1)×Tick Time
+Where:
+Counter Period is the max timer value
+Tick Time = 1 µs (if prescaler makes timer run at 1 MHz)
+
+Example:
+Let’s say:
+Prescaler = 83 → Timer runs at 1 MHz → 1 µs per tick
+You want a PWM frequency of 50 Hz → Period = 20 ms = 20,000 µs
+You now solve for Counter Period:
+Counter Period=20000−1=19999
+This makes the timer count from 0 to 19999 in 1 µs steps → Total = 20 ms → PWM period = ✅
+
+🧭 How This Affects Servo Control
+In servo PWM, typical pulse widths are:
+0° = 500 µs
+90° = 1500 µs
+180° = 2500 µs
+If your timer resolution is 1 µs and Counter Period is 209 → then:
+You can only send a max 210 µs pulse, which is not enough for servo PWM.
+So likely, in real servo projects:
+Counter Period = 19999 (for 20 ms frame)
+Pulse width (via __HAL_TIM_SET_COMPARE) is between 500 and 2500
+
+PWM Frequency Calculation Formula:
+PWM Frequency : Timer Clock Frequency / ( 1+Prescaler ) X ( 1+Counter Period )
+
+Angle to Pulse Width Mapping Formula:
+Pulse (μs) = 500 + (angle × 2000 / 180)
+
+
+🔹 PWM (Pulse Width Modulation)
+PWM is a technique used by digital devices like microcontrollers to simulate analog-like behavior.
+Since digital devices can only output HIGH (1) or LOW (0) signals, they create an average voltage by rapidly switching the signal ON and OFF at a high speed. This rapid switching at a certain frequency delivers varying power to components like LEDs, motors, or servos.
+
+🔧 Think of it like flipping a switch ON and OFF very quickly — the faster you do it, and the longer it's ON vs OFF, the more power is delivered on average.
+
+🔹 Frequency
+The frequency of a PWM signal is the number of complete cycles the signal goes through in one second.
+ Each cycle consists of one HIGH (ON) phase and one LOW (OFF) phase.
+Measured in: Hertz (Hz)
+Formula:
+Frequency=1/period
+Example: A frequency of 50 Hz means the signal completes 50 ON-OFF cycles every second, and each cycle takes 20 milliseconds.
+
+🔹 Duty Cycle
+The duty cycle tells us how long the signal stays ON during each PWM cycle, compared to the total duration of the cycle.
+Expressed as: A percentage (%)
+Formula:
+Duty Cycle=(on time/total cycle time)X100
+A 50% duty cycle means the signal is ON for half of the cycle and OFF for the other half.
+A 75% duty cycle means the signal is ON for 75% of the time and OFF for 25%.
+
+🔶 What are Timers?
+A timer is a hardware peripheral inside STM32 that counts clock pulses and performs specific actions like:
+Generate PWM signals
+Count time duration (delays)
+Trigger interrupts
+Measure pulse lengths or input frequencies
+
+
+🔶 What is Clock Source?
+Clock source is where the timer gets its tick from.
+Types:
+Source Description
+System Clock Default core clock (e.g., 84 MHz)
+APB1/APB2 Bus Peripheral buses, usually dividers
+External Clock Input from external pin (like encoder, sensor)
+
+🔷 What is System Clock?
+The system clock is the main operating frequency of your MCU. For STM32F401:
+System Clock = 84 MHz (typically from HSE crystal or PLL)
+
+🎯 What Is a Prescaler?
+A prescaler is like a gearbox for your timer clock.
+It slows down the timer input clock so the timer counts more slowly.
+🧠 Real-Life Analogy
+Imagine:
+The system clock is like a very fast ticking stopwatch (e.g., 84 million ticks per second = 84 MHz).
+But your timer doesn't need to count that fast.
+So we use a prescaler to reduce that speed — like using a fan regulator to slow down the speed of a fan.
+
+⚙️ Why Do We Need a Prescaler?
+Most microcontroller clocks (like STM32F401) run very fast — 84 MHz, meaning the timer would count from 0 to max (65535) in less than 1 ms.
+That’s too fast for applications like:
+Servo PWM (which needs 20ms period)
+Delays
+Frequency measurement
+So, we divide the clock frequency using a prescaler to make the timer slower and more useful.
