@@ -8,6 +8,7 @@
 #define TFT_RST 8
 #define TFT_DC 7
 #define TFT_BL 9
+
 #define ST77XX_BLACK 0x0000
 #define ST77XX_WHITE 0xFFFF
 #define ST77XX_RED 0xF800
@@ -20,6 +21,7 @@
 #define ST77XX_GRAY 0x8410
 #define ST77XX_BROWN 0xA145
 #define ST77XX_PURPLE 0x780F
+
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
 #define PCF_ADDR 0x20
@@ -37,13 +39,79 @@ String storedPasscode = "";
 bool passcodeSet = false;
 bool relayActive = false;
 unsigned long relayStart = 0;
+int shutterY = 230;
+int shutterHeight = 120;
+bool shutterDrawn = false;
+int shutterX = 200;
+int shutterWidth = 100;
+int previousFillHeight = 0;
+
+void drawShutter(bool opening) {
+  int steps = 20;
+  int delayTime = 60;
+  int rollerBoxHeight = 20;
+  int runnerWidth = 6;
+
+  tft.fillRoundRect(shutterX - 12, shutterY - shutterHeight - rollerBoxHeight - 4,
+                    shutterWidth + 25, rollerBoxHeight, 5, ST77XX_BROWN);
+
+  tft.fillRect(shutterX - runnerWidth, shutterY - shutterHeight,
+               runnerWidth, shutterHeight, ST77XX_BROWN);
+  tft.fillRect(shutterX + shutterWidth, shutterY - shutterHeight,
+               runnerWidth, shutterHeight, ST77XX_BROWN);
+
+  int previousFillHeight = opening ? shutterHeight : 0;
+
+  for (int i = 0; i <= steps; i++) {
+    int fillHeight;
+    int yStart = shutterY - shutterHeight;
+
+    if (opening) {
+      fillHeight = shutterHeight - (shutterHeight * i) / steps;
+    } else {
+      fillHeight = (shutterHeight * i) / steps;
+    }
+
+    int delta = abs(fillHeight - previousFillHeight);
+    int yClear = opening ? (yStart + fillHeight) : (yStart + previousFillHeight);
+    tft.fillRect(shutterX, yClear, shutterWidth, delta, ST77XX_BLACK);
+
+    int slatHeight = 8;
+    int slatSpacing = 2;
+    int currentY = yStart + fillHeight - slatHeight;
+
+    while (currentY >= yStart) {
+      if (currentY + slatHeight <= yStart + fillHeight) {
+        tft.fillRect(shutterX, currentY, shutterWidth, slatHeight, ST77XX_PURPLE);
+        tft.drawLine(shutterX, currentY + slatHeight - 1,
+                     shutterX + shutterWidth, currentY + slatHeight - 1,
+                     ST77XX_BLACK);
+      }
+      currentY -= (slatHeight + slatSpacing);
+    }
+
+    if (fillHeight > 15) {
+      int handleWidth = 20;
+      int handleHeight = 8;
+      int handleX = shutterX + (shutterWidth - handleWidth) / 2;
+      int handleY = yStart + fillHeight - handleHeight - 4;
+      tft.fillRoundRect(handleX, handleY, handleWidth, handleHeight, 3, ST77XX_GRAY);
+    }
+
+    previousFillHeight = fillHeight;
+    delay(delayTime);
+  }
+}
+
+void drawShutterFrame() {
+  tft.drawRoundRect(shutterX - 2, shutterY - shutterHeight - 2, shutterWidth + 4, shutterHeight + 4, 4, ST77XX_WHITE);
+}
 
 void setup() {
   Wire.begin();
   Serial.begin(9600);
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
-
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
   tft.init(240, 320);
@@ -51,10 +119,10 @@ void setup() {
   tft.fillScreen(ST77XX_BLACK);
   tft.setTextSize(2);
   tft.setTextColor(ST77XX_WHITE);
-
   drawStaticUI();
   updatePasscodeDisplay();
   updateStatusDisplay("Door Closed");
+  drawShutterFrame();
 }
 
 void loop() {
@@ -137,10 +205,16 @@ void updatePasscodeDisplay() {
 }
 
 void updateStatusDisplay(const char* msg) {
-  tft.fillRect(0, 135, 240, 40, ST77XX_BLACK);
+  tft.fillRect(0, 135, 190, 40, ST77XX_BLACK);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(10, 150);
   tft.print(msg);
+
+  if (strcmp(msg, "Door Open") == 0) {
+    drawShutter(true);
+  } else if (strcmp(msg, "Door Closed") == 0) {
+    drawShutter(false);
+  }
 }
 
 void writePCF(byte data) {
