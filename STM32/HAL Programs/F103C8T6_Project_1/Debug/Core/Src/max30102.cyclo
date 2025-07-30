@@ -1,0 +1,3 @@
+../Core/Src/max30102.c:3:6:MAX30102_WriteReg	1
+../Core/Src/max30102.c:8:6:MAX30102_ReadFIFO	1
+../Core/Src/max30102.c:21:6:MAX30102_Init	1
