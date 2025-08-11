@@ -391,113 +391,135 @@ void loop() {
 }
 
 void playJingleBells() {
-  for (int thisNote = 0; thisNote < totalNotesJB; thisNote++) {
-    if (stopMusic) break;
-    int noteDuration = 1000 / noteDurationsJB[thisNote];
-    if (melodyJB[thisNote] != NOTE_REST) {
-      tone(BUZZER_PIN, melodyJB[thisNote], noteDuration);
+  for (int noteIndex = 0; noteIndex < totalNotesJB; noteIndex++) {
+
+    // Calculate timing for the note and gap
+    int baseNoteDuration = 1000 / noteDurationsJB[noteIndex];
+    float notePlayFactor = 0.9;  // play 90% of time
+    float gapFactor = 0.1;       // rest 10% of time
+
+    unsigned long playTime = baseNoteDuration * notePlayFactor;
+    unsigned long gapTime = baseNoteDuration * gapFactor;
+
+    // Start playing the note
+    if (melodyJB[noteIndex] != NOTE_REST) {
+      tone(BUZZER_PIN, melodyJB[noteIndex]);
     } else {
-      noTone(BUZZER_PIN);
+      noTone(BUZZER_PIN);  // rest
     }
-    int pauseBetweenNotes = noteDuration * 1.5;
-    delay(pauseBetweenNotes);
+
+    // Play for playTime, checking for stop
+    unsigned long noteStartTime = millis();
+    while (millis() - noteStartTime < playTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        noTone(BUZZER_PIN);
+        return;
+      }
+    }
+
+    // Stop the note to create the gap
     noTone(BUZZER_PIN);
+    unsigned long gapStartTime = millis();
+    while (millis() - gapStartTime < gapTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        return;
+      }
+    }
   }
-  delay(1500); // pause before repeating
 }
+
 
 
 void playBellaChao() {
-  // The entire melody and delays from your BellaChao loop:
+  struct Note {
+    int freq;
+    float mult;
+  };
+  Note notes[] = {
+    { Mi, 1 }, { La, 1 }, { Si, 1 }, { Do2, 1 }, { La, 1 }, { -1, 2 },  // pause
+    { Mi, 1 },
+    { La, 1 },
+    { Si, 1 },
+    { Do2, 1 },
+    { La, 1 },
+    { -1, 2 },
+    { Mi, 1 },
+    { La, 1 },
+    { Si, 1 },
+    { Do2, 1.3 },
+    { -1, 2 },
+    { Si, 1 },
+    { La, 1 },
+    { Do2, 1.3 },
+    { -1, 2 },
+    { Si, 1 },
+    { La, 1 },
+    { Mi2, 1 },
+    { -1, white },
+    { Mi2, 1 },
+    { -1, white },
+    { Mi2, 1 },
+    { Re2, 1 },
+    { Mi2, 1 },
+    { Fa2, 1 },
+    { Fa2, 1.3 },
+    { -1, rounda },
+    { Fa2, 1 },
+    { Mi2, 1 },
+    { Re2, 1 },
+    { Fa2, 1 },
+    { Mi2, 1.3 },
+    { -1, rounda },
+    { Mi2, 1 },
+    { Re2, 1 },
+    { Do2, 1 },
+    { Si, 1.3 },
+    { Mi2, 1.3 },
+    { Si, 1.3 },
+    { Do2, 1.3 },
+    { La, rounda * 1.3 }
+  };
 
-  tone(BUZZER_PIN, Mi, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Si, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Do2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
+  for (int i = 0; i < sizeof(notes) / sizeof(notes[0]); i++) {
+    // Calculate full note duration
+    unsigned long fullDuration = (unsigned long)(black * notes[i].mult) + 50;
 
-  delay(2 * white + 50);
+    // Play only 90% of the time, leave 10% gap
+    unsigned long playTime = fullDuration * 0.9;
+    unsigned long gapTime = fullDuration - playTime;
 
-  tone(BUZZER_PIN, Mi, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Si, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Do2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
+    // Start playing note (if it's not a rest)
+    if (notes[i].freq > 0) tone(BUZZER_PIN, notes[i].freq);
+    else noTone(BUZZER_PIN);
 
-  delay(2 * white + 50);
+    // Play phase
+    unsigned long startTime = millis();
+    while (millis() - startTime < playTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        noTone(BUZZER_PIN);
+        return;
+      }
+    }
 
-  tone(BUZZER_PIN, Mi, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Si, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Do2, white * 1.3);
-  delay(2 * black + 50);
-
-  tone(BUZZER_PIN, Si, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Do2, white * 1.3);
-  delay(2 * black + 50);
-
-  tone(BUZZER_PIN, Si, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, La, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Mi2, black);
-  delay(white + 50);
-  tone(BUZZER_PIN, Mi2, black);
-  delay(white + 100);
-
-  tone(BUZZER_PIN, Mi2, black);
-  delay(white + 50);
-  tone(BUZZER_PIN, Re2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Mi2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Fa2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Fa2, white * 1.3);
-  delay(rounda + 100);
-
-  tone(BUZZER_PIN, Fa2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Mi2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Re2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Fa2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Mi2, white * 1.3);
-  delay(rounda + 100);
-
-  tone(BUZZER_PIN, Mi2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Re2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Do2, black);
-  delay(black + 50);
-  tone(BUZZER_PIN, Si, white * 1.3);
-  delay(white + 50);
-  tone(BUZZER_PIN, Mi2, white * 1.3);
-  delay(white + 50);
-  tone(BUZZER_PIN, Si, white * 1.3);
-  delay(white + 50);
-  tone(BUZZER_PIN, Do2, white * 1.3);
-  delay(white + 50);
-  tone(BUZZER_PIN, La, rounda * 1.3);
-  delay(rounda + 50);
+    // Gap phase (silence)
+    noTone(BUZZER_PIN);
+    unsigned long gapStart = millis();
+    while (millis() - gapStart < gapTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        return;
+      }
+    }
+  }
 }
+
 
 
 // ---------------------
@@ -520,36 +542,96 @@ void showMenu() {
 // ---------------------
 void playHappyBirthday() {
   int size = sizeof(melodyHB) / sizeof(int);
-  for (int thisNote = 0; thisNote < size; thisNote++) {
-    if (stopMusic) break;
-    int noteDuration = 1000 / noteDurationsHB[thisNote];
-    tone(BUZZER_PIN, melodyHB[thisNote], noteDuration);
-    delay(noteDuration * 1.3);
+
+  for (int noteIndex = 0; noteIndex < size; noteIndex++) {
+    // Calculate note timing
+    int baseNoteDuration = 1000 / noteDurationsHB[noteIndex];
+    float playRatio = 1.2;  // 90% play
+    float gapRatio = 0.1;   // 10% silence
+
+    unsigned long playTime = baseNoteDuration * playRatio;
+    unsigned long gapTime = baseNoteDuration * gapRatio;
+
+    // Start playing note (or rest)
+    if (melodyHB[noteIndex] != NOTE_REST) {
+      tone(BUZZER_PIN, melodyHB[noteIndex]);
+    } else {
+      noTone(BUZZER_PIN);
+    }
+
+    // Play phase
+    unsigned long startTime = millis();
+    while (millis() - startTime < playTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        noTone(BUZZER_PIN);
+        return;
+      }
+    }
+
+    // Gap phase
     noTone(BUZZER_PIN);
+    unsigned long gapStart = millis();
+    while (millis() - gapStart < gapTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        return;
+      }
+    }
   }
 }
 
+
 void playHarryPotter() {
   int divider = 0, noteDuration = 0;
+
   for (int thisNote = 0; thisNote < notesHP * 2; thisNote += 2) {
-    if (stopMusic) break;
     int note = melodyHP[thisNote];
     int duration = melodyHP[thisNote + 1];
 
+    // Calculate note duration
     divider = duration;
     if (divider > 0) {
-      noteDuration = (wholenoteHP) / divider;
+      noteDuration = wholenoteHP / divider;
     } else if (divider < 0) {
-      noteDuration = (wholenoteHP) / abs(divider);
-      noteDuration *= 1.5;  // dotted notes
+      noteDuration = (wholenoteHP / abs(divider)) * 1.5;
     }
+
+    // Split into play & gap times
+    float playRatio = 0.9;  // 90% play
+    unsigned long playTime = noteDuration * playRatio;
+    unsigned long gapTime = noteDuration - playTime;
+
+    // Play the note (or rest)
     if (note == REST) {
       noTone(BUZZER_PIN);
     } else {
-      tone(BUZZER_PIN, note, noteDuration * 0.9);
+      tone(BUZZER_PIN, note);
     }
-    delay(noteDuration);
+
+    // Play phase
+    unsigned long startTime = millis();
+    while (millis() - startTime < playTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        noTone(BUZZER_PIN);
+        return;
+      }
+    }
+
+    // Gap phase (silence)
     noTone(BUZZER_PIN);
+    unsigned long gapStart = millis();
+    while (millis() - gapStart < gapTime) {
+      char key = scanKeypad();
+      if (key == 'A') {
+        stopMusic = true;
+        return;
+      }
+    }
   }
 }
 
