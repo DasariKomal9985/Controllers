@@ -2,18 +2,19 @@
 #include <Adafruit_ST7789.h>
 #include <SPI.h>
 #include <math.h>
-#define TFT_CS     53
-#define TFT_RST    8
-#define TFT_DC     7
-#define TFT_BL     9
+#define TFT_CS 53
+#define TFT_RST 8
+#define TFT_DC 7
+#define TFT_BL 9
 const int detectPin = 25;
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
-int frame = 0;
-const int totalDots = 24;
-const int activeDots = 6;
-int centerX = 120;
-int centerY = 170;
-int radius = 60;
+// Magnifying glass animation variables
+int magnifyingGlassX = 50;
+int magnifyingGlassY = 170;
+int direction = 1;  // 1 for right, -1 for left
+const int minX = 50;
+const int maxX = 270;
+const int moveSpeed = 3;
 bool detectedLastState = false;
 void drawTitleBoxes() {
   int boxHeight = 40;
@@ -71,23 +72,71 @@ void setup() {
   drawTitleBoxes();
   drawStatusBox();
 }
-void drawLoadingWheel() {
-  for (int i = 0; i < totalDots; i++) {
-    float angle = 2 * PI * i / totalDots;
-    int x = centerX + cos(angle) * radius;
-    int y = centerY + sin(angle) * radius;
-    if ((i + frame) % totalDots < activeDots) {
-      uint8_t brightness = 255 - ((activeDots - ((i + frame) % totalDots)) * 30);
-      uint16_t color = tft.color565(brightness, brightness, brightness);
-      tft.fillCircle(x, y, 3, color);
-    } else {
-      tft.fillCircle(x, y, 3, ST77XX_BLACK);
-    }
+unsigned long lastMoveTime = 0;
+const int moveInterval = 1000;  // ms between moves (~20 FPS)
+const int moveStep = 10;       // pixels per step
+
+void drawMagnifyingGlassSmooth() {
+  static int prevX = -999;
+  static int prevY = -999;
+  int glassRadius = 25;
+  int handleLength = 30;
+
+  // Erase old position only when needed
+  if (prevX != -999 && (magnifyingGlassX != prevX || magnifyingGlassY != prevY)) {
+    int extra = handleLength;
+    int eraseX = prevX - glassRadius - extra;
+    int eraseY = prevY - glassRadius - extra;
+    int eraseW = (glassRadius + extra) * 2;
+    int eraseH = (glassRadius + extra) * 2;
+    tft.fillRect(eraseX, eraseY, eraseW, eraseH, ST77XX_BLACK);
   }
-  frame = (frame + 1) % totalDots;
+
+  // Draw lens rim
+  tft.drawCircle(magnifyingGlassX, magnifyingGlassY, glassRadius, ST77XX_WHITE);
+  tft.drawCircle(magnifyingGlassX, magnifyingGlassY, glassRadius - 1, ST77XX_WHITE);
+  tft.drawCircle(magnifyingGlassX, magnifyingGlassY, glassRadius - 2, 0x8410);
+
+  // Lens fill
+  tft.fillCircle(magnifyingGlassX, magnifyingGlassY, glassRadius - 3, 0x3D7F);
+  tft.fillCircle(magnifyingGlassX - 8, magnifyingGlassY - 8, 6, ST77XX_WHITE);
+  tft.fillCircle(magnifyingGlassX - 12, magnifyingGlassY - 12, 3, ST77XX_WHITE);
+
+  // Handle
+  float angle = 2.356;
+  int handleStartX = magnifyingGlassX + cos(angle) * (glassRadius - 2);
+  int handleStartY = magnifyingGlassY + sin(angle) * (glassRadius - 2);
+  int handleEndX = handleStartX + cos(angle) * handleLength;
+  int handleEndY = handleStartY + sin(angle) * handleLength;
+
+  for (int i = 0; i < 4; i++) {
+    tft.drawLine(handleStartX + i, handleStartY, handleEndX + i, handleEndY, 0x8400);
+    tft.drawLine(handleStartX, handleStartY + i, handleEndX, handleEndY + i, 0x8400);
+  }
+  tft.drawLine(handleStartX, handleStartY, handleEndX, handleEndY, 0xA800);
+
+  for (int i = 5; i < handleLength - 5; i += 4) {
+    int gripX = handleStartX + cos(angle) * i;
+    int gripY = handleStartY + sin(angle) * i;
+    tft.drawLine(gripX - 1, gripY + 1, gripX + 1, gripY - 1, 0x6000);
+  }
+
+  prevX = magnifyingGlassX;
+  prevY = magnifyingGlassY;
 }
-void clearLoadingWheelArea() {
-  tft.fillCircle(centerX, centerY, radius + 5, ST77XX_BLACK);
+
+void updateMagnifyingGlassPosition() {
+  if (millis() - lastMoveTime >= moveInterval) {
+    magnifyingGlassX += direction * moveStep;
+    if (magnifyingGlassX >= maxX) direction = -1;
+    else if (magnifyingGlassX <= minX) direction = 1;
+    lastMoveTime = millis();
+  }
+}
+
+
+void clearMagnifyingGlassArea() {
+  tft.fillRect(0, 120, 320, 100, ST77XX_BLACK);
 }
 void showDetectedBox() {
   int boxWidth = 220;
@@ -110,7 +159,7 @@ void loop() {
   if (state == HIGH) {
     if (!detectedLastState) {
       Serial.println("Metal Detected");
-      clearLoadingWheelArea();
+      clearMagnifyingGlassArea();
       clearDetectedBox();
       showDetectedBox();
       printStatus("DETECTED", ST77XX_GREEN);
@@ -123,7 +172,8 @@ void loop() {
       printStatus("NOT FOUND", ST77XX_RED);
       detectedLastState = false;
     }
-    drawLoadingWheel();
+    updateMagnifyingGlassPosition();
+    drawMagnifyingGlassSmooth();
   }
   delay(100);
 }
