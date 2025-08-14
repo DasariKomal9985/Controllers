@@ -18,9 +18,9 @@ struct AQILevel {
   {0,   35,   1, "Excellent"},
   {35,  79,   2, "Average"},
   {80,  115,  3, "Light Pol"},
-  {115, 150,  4, "Moderate Pol"},
-  {150, 250,  5, "Heavy Pol"},
-  {250, 500,  6, "Serious Pol"}
+  {115, 130,  4, "Moderate Pol"},
+  {130, 200,  5, "Heavy Pol"},
+  {200, 500,  6, "Serious Pol"}
 };
 
 // Custom character for bar (full block)
