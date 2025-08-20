@@ -8,92 +8,138 @@
 #define TFT_RST 8
 #define TFT_DC 7
 #define TFT_BL 9
+
+// ==== Limit Switch ====
+#define SWITCH_PIN 47
+bool switchPressed = false;
+unsigned long pressStartTime = 0;
+float holdTime = 0;
+
+// ==== Arm Animation ====
 float g_forearmAngleDeg = 0;
 float g_handOffsetDeg = 0;
 float fingerSwing = 0;  // How much fingers are spread
 float fingerSpeed = 0.004;
-Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 float prevElbowAngle = -120;
-// ===== Base Config =====
-#define BASE_ORIENTATION_SIDE 1
-#define BASE_ORIENTATION_BOTTOM 2
-#define BASE_ORIENTATION BASE_ORIENTATION_SIDE
-void drawElbowJoint();
-void drawWristJoint(bool erase = false);
+float elbowSpeed = 0.001;
+
+Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
+
 // ==== Joint Positions ====
 int shoulderX, shoulderY;
 int elbowX, elbowY;
 int wristX, wristY;
+int prevFingerOffsetPx = 0;  // previous frame's finger spread in pixels
+
+// ==== Base Orientation ====
+#define BASE_ORIENTATION_SIDE 1
+#define BASE_ORIENTATION_BOTTOM 2
+#define BASE_ORIENTATION BASE_ORIENTATION_SIDE
+
+bool animationStopped = false;
+bool brokenHandShown = false;
+unsigned long brokenStartTime = 0;
+
+// ==== Function Prototypes ====
 void drawBaseOnly();
 void drawShoulderArm(float angleDeg);
 void drawForearm(float angleDeg, uint16_t color, bool inflate = false);
-void drawWristHand(float angleDeg, uint16_t color, bool inflate = false);
+void drawWristHand(float angleDeg, uint16_t color, bool inflate = false, int fingerOffsetPx = 0);
 void drawElbowJoint();
 void drawWristJoint(bool erase = false);
-int prevFingerOffsetPx = 0;  // previous frame's finger spread in pixels
-void drawWristHand(float angleDeg, uint16_t color, bool inflate = false, int fingerOffsetPx = 0);
-float elbowSpeed = 0.001;
-
+void clearForearmHand();
+void drawBrokenHand();
+float startAngle = -170;
+float endAngle = -80;
+float swing = (sin(millis() * elbowSpeed) + 1) / 2;
+float totalElbow = startAngle + swing * (endAngle - startAngle);
 void setup() {
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
+  pinMode(SWITCH_PIN, INPUT);
 
   tft.init(240, 320);
   tft.setRotation(1);
   tft.fillScreen(ST77XX_BLACK);
 
-  // Static parts
+  // Draw static parts
   drawBaseOnly();
   drawShoulderArm(35);
 
-  // Initial arm pose
   float elbowOffset = -70;
-  drawForearm(35 + elbowOffset, ST77XX_YELLOW, false);
-
-  // Initial finger offset (px)
+  drawForearm(35 + elbowOffset, ST77XX_YELLOW);
   int initFingerOffsetPx = (int)round(fingerSwing * 3.0);
   prevFingerOffsetPx = initFingerOffsetPx;
   drawWristHand(35 + elbowOffset, ST77XX_WHITE, false, initFingerOffsetPx);
 
-  // Draw joints last
   drawElbowJoint();
   drawWristJoint(false);
 }
 
-
-
-
-
 void loop() {
-  float startAngle = -150;
-  float endAngle = 10;
-  float swing = (sin(millis() * elbowSpeed) + 1) / 2;
-  float totalElbow = startAngle + swing * (endAngle - startAngle);
+  // ==== Read limit switch ====
+  bool currentState = !digitalRead(SWITCH_PIN);  // active LOW
+  if (currentState && !switchPressed) {
+    switchPressed = true;
+    pressStartTime = millis();
+  } else if (!currentState && switchPressed) {
+    switchPressed = false;
+    holdTime = (millis() - pressStartTime) / 1000.0;
+  }
 
-  // Compute new finger spread and quantize to whole pixels
-  fingerSwing = (sin(millis() * fingerSpeed) + 1) / 2;
-  int newFingerOffsetPx = (int)round(fingerSwing * 3.0);  // spread in pixels
+  // ==== Broken hand logic ====
+  if (!brokenHandShown && totalElbow > -90) {  // trigger when it reaches limit
+    animationStopped = true;
+    brokenHandShown = true;
+    brokenStartTime = millis();
+    drawBrokenHand();  // show broken hand
+  }
 
-  // Erase previous forearm + hand + ring using PREVIOUS angle and PREVIOUS finger offset
-  drawForearm(70 + prevElbowAngle, ST77XX_BLACK, true);
-  drawWristHand(70 + prevElbowAngle, ST77XX_BLACK, true, prevFingerOffsetPx);
-  drawWristJoint(true);
+  // Resume animation after 2 seconds of broken-hand
+  if (brokenHandShown && millis() - brokenStartTime > 2000) {
+    brokenHandShown = false;
+    animationStopped = false;
+    prevElbowAngle = -120;  // reset animation to start
+  }
 
-  // Draw new forearm + hand using NEW values
-  drawForearm(70 + totalElbow, ST77XX_YELLOW, false);
-  drawWristHand(70 + totalElbow, ST77XX_WHITE, false, newFingerOffsetPx);
+  // ==== Animate only if not stopped or broken ====
+  if (!animationStopped && !switchPressed) {
+    float startAngle = -170;
+    float endAngle = -80;
+    float swing = (sin(millis() * elbowSpeed) + 1) / 2;
+    float totalElbow = startAngle + swing * (endAngle - startAngle);
 
-  // Redraw joints last
-  drawElbowJoint();
-  drawWristJoint(false);
+    // Finger animation
+    fingerSwing = (sin(millis() * fingerSpeed) + 1) / 2;
+    int newFingerOffsetPx = (int)round(fingerSwing * 3.0);
 
-  // Save for next frame
-  prevElbowAngle = totalElbow;
-  prevFingerOffsetPx = newFingerOffsetPx;
+    // Erase previous frame
+    drawForearm(70 + prevElbowAngle, ST77XX_BLACK, true);
+    drawWristHand(70 + prevElbowAngle, ST77XX_BLACK, true, prevFingerOffsetPx);
+    drawWristJoint(true);
+
+    // Draw new frame
+    drawForearm(70 + totalElbow, ST77XX_YELLOW, false);
+    drawWristHand(70 + totalElbow, ST77XX_WHITE, false, newFingerOffsetPx);
+    drawElbowJoint();
+    drawWristJoint(false);
+
+    prevElbowAngle = totalElbow;
+    prevFingerOffsetPx = newFingerOffsetPx;
+  }
 
   delay(50);
 }
+void drawBrokenHand() {
+  // Draw a red box as placeholder
+  tft.fillRect(120, 20, 100, 60, ST77XX_RED);
 
+  // Set text parameters
+  tft.setTextSize(2);              // make text readable
+  tft.setTextColor(ST77XX_WHITE);  // white text
+  tft.setCursor(130, 40);          // position inside the red box
+  tft.print("BROKEN!");
+}
 
 
 
