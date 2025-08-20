@@ -51,7 +51,8 @@ void clearForearmHand();
 void drawBrokenHand();
 float startAngle = -170;
 float endAngle = -80;
-float swing = (sin(millis() * elbowSpeed) + 1) / 2;
+float swingSpeed = 0.0003;  // slower swing speed
+float swing = (sin(millis() * swingSpeed) + 1) / 2;
 float totalElbow = startAngle + swing * (endAngle - startAngle);
 void setup() {
   pinMode(TFT_BL, OUTPUT);
@@ -87,27 +88,24 @@ void loop() {
     holdTime = (millis() - pressStartTime) / 1000.0;
   }
 
-  // ==== Broken hand logic ====
-  if (!brokenHandShown && totalElbow > -90) {  // trigger when it reaches limit
-    animationStopped = true;
-    brokenHandShown = true;
-    brokenStartTime = millis();
-    drawBrokenHand();  // show broken hand
-  }
-
-  // Resume animation after 2 seconds of broken-hand
-  if (brokenHandShown && millis() - brokenStartTime > 2000) {
-    brokenHandShown = false;
-    animationStopped = false;
-    prevElbowAngle = -120;  // reset animation to start
-  }
-
   // ==== Animate only if not stopped or broken ====
   if (!animationStopped && !switchPressed) {
+    // Slower swing by decreasing speed
+    float swingSpeed = 0.0003;  // slower than before
     float startAngle = -170;
     float endAngle = -80;
-    float swing = (sin(millis() * elbowSpeed) + 1) / 2;
+    float swing = (sin(millis() * swingSpeed) + 1) / 2;
     float totalElbow = startAngle + swing * (endAngle - startAngle);
+
+    // ---- Broken hand logic ----
+    float drawnElbow = 70 + totalElbow;   // same as drawing
+    float maxDrawnAngle = 70 + endAngle;  // corresponds to visual limit
+    if (!brokenHandShown && drawnElbow >= maxDrawnAngle) {
+      animationStopped = true;
+      brokenHandShown = true;
+      brokenStartTime = millis();
+      drawBrokenHand();
+    }
 
     // Finger animation
     fingerSwing = (sin(millis() * fingerSpeed) + 1) / 2;
@@ -128,8 +126,25 @@ void loop() {
     prevFingerOffsetPx = newFingerOffsetPx;
   }
 
+  // ==== Resume animation after 2 seconds of broken-hand ====
+  if (brokenHandShown && millis() - brokenStartTime > 2000) {
+    brokenHandShown = false;
+    animationStopped = false;
+
+    // Clear broken hand animation
+    tft.fillScreen(ST77XX_BLACK);
+    drawBaseOnly();
+    drawShoulderArm(35);
+
+    // Reset positions
+    prevElbowAngle = -170;  // reset to start of swing
+    prevFingerOffsetPx = 0;
+  }
+
   delay(50);
 }
+
+
 void drawBrokenHand() {
   // Draw a red box as placeholder
   tft.fillRect(120, 20, 100, 60, ST77XX_RED);
