@@ -1,3 +1,0 @@
-../Core/Src/max30102.c:3:6:MAX30102_WriteReg	32	static
-../Core/Src/max30102.c:8:6:MAX30102_ReadFIFO	40	static
-../Core/Src/max30102.c:21:6:MAX30102_Init	16	static
