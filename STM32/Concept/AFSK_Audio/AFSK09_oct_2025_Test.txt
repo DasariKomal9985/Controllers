@@ -1,0 +1,16 @@
+3️⃣ Suggestions for wired testing
+Option A — Minimal bypass (best for debugging)
+
+Connect DAC output directly to ADC input with a series resistor (~1 kΩ) for protection.
+
+Do not add capacitor yet. Just check if receiver detects bits.
+
+Option B — Proper RC filter
+
+If you want a low-pass to smooth DAC:
+
+Use R = 1–2 kΩ, C = 10–20 nF → cutoff ≈ 8–15 kHz.
+
+This passes both 1500 Hz & 2500 Hz well.
+
+Avoid 0.1 µF for this application — it’s too aggressive.
