@@ -110,7 +110,8 @@ int main(void) {
 			gps_ready = 0;
 
 			// Check if sentence starts with $GNGLL
-			if (strncmp(gps_buffer, "$GNGLL", 6) == 0) {
+			if (strncmp(gps_buffer, "$GNGLL", 6) == 0
+					|| strncmp(gps_buffer, "$GPGLL", 6) == 0) {
 				parse_GNGLL(gps_buffer);
 			}
 		}
@@ -175,7 +176,7 @@ void parse_GNGLL(const char *sentence) {
 			fields[2], lon_decimal, fields[4]);
 
 	HAL_UART_Transmit(&huart1, (uint8_t*) result, strlen(result),
-			HAL_MAX_DELAY);
+	HAL_MAX_DELAY);
 }
 
 void SystemClock_Config(void) {

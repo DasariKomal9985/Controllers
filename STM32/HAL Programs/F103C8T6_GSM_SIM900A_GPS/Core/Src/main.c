@@ -205,26 +205,39 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 }
 
 void send_sms(const char *lat, const char *lon) {
-	const char *number = "+919985798499";  // <-- Replace with your number
+	const char *number = "+919985798499";  // Replace with your number
+	char lat_buf[30], lon_buf[30];
+
+	// If no GPS data available, fill with defaults
+	if (strlen(lat) == 0)
+		strcpy(lat_buf, "Not Available");
+	else
+		strcpy(lat_buf, lat);
+
+	if (strlen(lon) == 0)
+		strcpy(lon_buf, "Not Available");
+	else
+		strcpy(lon_buf, lon);
+
 	sprintf(sms_buffer, "AT\r\n");
 	HAL_UART_Transmit(&huart3, (uint8_t*) sms_buffer, strlen(sms_buffer),
-	HAL_MAX_DELAY);
+			HAL_MAX_DELAY);
 	HAL_Delay(1000);
 
 	sprintf(sms_buffer, "AT+CMGF=1\r\n");  // Text mode
 	HAL_UART_Transmit(&huart3, (uint8_t*) sms_buffer, strlen(sms_buffer),
-	HAL_MAX_DELAY);
+			HAL_MAX_DELAY);
 	HAL_Delay(1000);
 
 	sprintf(sms_buffer, "AT+CMGS=\"%s\"\r\n", number);
 	HAL_UART_Transmit(&huart3, (uint8_t*) sms_buffer, strlen(sms_buffer),
-	HAL_MAX_DELAY);
+			HAL_MAX_DELAY);
 	HAL_Delay(1000);
 
 	sprintf(sms_buffer, "GPS Location:\r\nLatitude: %s\r\nLongitude: %s\r\n",
-			lat, lon);
+			lat_buf, lon_buf);
 	HAL_UART_Transmit(&huart3, (uint8_t*) sms_buffer, strlen(sms_buffer),
-	HAL_MAX_DELAY);
+			HAL_MAX_DELAY);
 	HAL_Delay(1000);
 
 	uint8_t ctrl_z = 0x1A;  // CTRL+Z

@@ -106,7 +106,7 @@ int main(void) {
 		adc_value = HAL_ADC_GetValue(&hadc1);
 
 		// Convert ADC value to temperature (assuming 5V Vref)
-		tempC = ((float) adc_value * 5.0f / 4095.0f) * 100.0f;
+		tempC = ((float) adc_value * 3.3f / 4095.0f) * 100.0f;
 
 		// Format and send temperature string
 		sprintf(uart_buf, "Temperature: %.2f°C\r\n", tempC);

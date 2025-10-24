@@ -1,0 +1,15 @@
+../Core/Src/main.c:106:5:main	32	static
+../Core/Src/main.c:203:6:SystemClock_Config	88	static
+../Core/Src/main.c:250:13:MX_ADC1_Init	56	static
+../Core/Src/main.c:318:13:MX_DAC1_Init	56	static
+../Core/Src/main.c:365:13:MX_TIM6_Init	24	static
+../Core/Src/main.c:403:13:MX_USART2_UART_Init	8	static
+../Core/Src/main.c:449:13:MX_DMA_Init	16	static
+../Core/Src/main.c:471:13:MX_GPIO_Init	40	static
+../Core/Src/main.c:499:6:make_sine_tables	24	static
+../Core/Src/main.c:512:6:afsk_build_char	32	static
+../Core/Src/main.c:534:9:goertzel_decode_bit	64	static
+../Core/Src/main.c:561:9:afsk_receive_char	24	static
+../Core/Src/main.c:580:6:HAL_ADC_ConvCpltCallback	16	static
+../Core/Src/main.c:586:6:fill_tone	32	static
+../Core/Src/main.c:605:6:Error_Handler	4	static,ignoring_inline_asm
