@@ -1,0 +1,8 @@
+../Core/Src/main.c:69:6:DrawBox	5
+../Core/Src/main.c:91:6:ShowMainMenu	1
+../Core/Src/main.c:114:5:main	1
+../Core/Src/main.c:163:6:SystemClock_Config	3
+../Core/Src/main.c:197:13:MX_I2C1_Init	2
+../Core/Src/main.c:229:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:260:13:MX_GPIO_Init	1
+../Core/Src/main.c:284:6:Error_Handler	1
