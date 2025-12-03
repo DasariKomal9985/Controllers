@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Delete resource &apos;103C8T6_Remote_Trasnmitter_Ver_001&apos;" deleteContents="true" description="Delete resource &apos;103C8T6_Remote_Trasnmitter_Ver_001&apos;" element1="/103C8T6_Remote_Trasnmitter_Ver_001" flags="7" id="org.eclipse.ltk.core.refactoring.delete.resources" resources="1" stamp="1764684283971"/>
+</session>

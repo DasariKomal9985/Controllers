@@ -1,0 +1,10 @@
+17:57:43 **** Incremental Build of configuration Debug for project 103C8T6_DHT11_Temp_Hum_A8_Ver_001 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_DHT11_Temp_Hum_A8_Ver_001.elf 
+   text	   data	    bss	    dec	    hex	filename
+   9364	     92	   2028	  11484	   2cdc	103C8T6_DHT11_Temp_Hum_A8_Ver_001.elf
+Finished building: default.size.stdout
+ 
+
+17:57:43 Build Finished. 0 errors, 0 warnings. (took 196ms)
+

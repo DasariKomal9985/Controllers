@@ -1,0 +1,10 @@
+04:59:26 **** Incremental Build of configuration Debug for project 103C8T6_Remote_Transmitter_Ver_003 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_Remote_Transmitter_Ver_003.elf 
+   text	   data	    bss	    dec	    hex	filename
+  24348	     96	   3576	  28020	   6d74	103C8T6_Remote_Transmitter_Ver_003.elf
+Finished building: default.size.stdout
+ 
+
+04:59:26 Build Finished. 0 errors, 0 warnings. (took 192ms)
+

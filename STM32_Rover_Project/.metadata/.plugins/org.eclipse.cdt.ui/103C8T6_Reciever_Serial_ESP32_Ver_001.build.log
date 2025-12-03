@@ -1,0 +1,10 @@
+21:22:27 **** Incremental Build of configuration Debug for project 103C8T6_Reciever_Serial_ESP32_Ver_001 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_Reciever_Serial_ESP32_Ver_001.elf 
+   text	   data	    bss	    dec	    hex	filename
+   9432	     12	   2044	  11488	   2ce0	103C8T6_Reciever_Serial_ESP32_Ver_001.elf
+Finished building: default.size.stdout
+ 
+
+21:22:27 Build Finished. 0 errors, 0 warnings. (took 197ms)
+

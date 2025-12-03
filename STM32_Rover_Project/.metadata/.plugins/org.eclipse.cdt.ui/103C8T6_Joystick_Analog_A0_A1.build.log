@@ -1,0 +1,10 @@
+04:59:24 **** Incremental Build of configuration Debug for project 103C8T6_Joystick_Analog_A0_A1 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_Joystick_Analog_A0_A1.elf 
+   text	   data	    bss	    dec	    hex	filename
+  11872	     92	   2076	  14040	   36d8	103C8T6_Joystick_Analog_A0_A1.elf
+Finished building: default.size.stdout
+ 
+
+04:59:25 Build Finished. 0 errors, 0 warnings. (took 136ms)
+

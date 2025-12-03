@@ -1,0 +1,9 @@
+../Core/Src/main.c:56:6:uart_print	1
+../Core/Src/main.c:69:9:nrf24_read_reg	1
+../Core/Src/main.c:84:6:nrf24_write_reg	1
+../Core/Src/main.c:101:5:main	3
+../Core/Src/main.c:153:6:SystemClock_Config	3
+../Core/Src/main.c:185:13:MX_SPI1_Init	2
+../Core/Src/main.c:206:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:224:13:MX_GPIO_Init	1
+../Core/Src/main.c:280:6:Error_Handler	1

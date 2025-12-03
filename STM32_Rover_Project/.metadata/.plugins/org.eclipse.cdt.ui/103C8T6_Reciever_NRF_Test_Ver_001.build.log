@@ -1,0 +1,10 @@
+19:30:08 **** Incremental Build of configuration Debug for project 103C8T6_Reciever_NRF_Test_Ver_001 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_Reciever_NRF_Test_Ver_001.elf 
+   text	   data	    bss	    dec	    hex	filename
+   5864	     12	   1732	   7608	   1db8	103C8T6_Reciever_NRF_Test_Ver_001.elf
+Finished building: default.size.stdout
+ 
+
+19:30:09 Build Finished. 0 errors, 0 warnings. (took 211ms)
+

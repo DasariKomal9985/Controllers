@@ -1,0 +1,10 @@
+04:59:25 **** Incremental Build of configuration Debug for project 103C8T6_OLED_I2C_Display ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_OLED_I2C_Display.elf 
+   text	   data	    bss	    dec	    hex	filename
+  11276	     16	   2760	  14052	   36e4	103C8T6_OLED_I2C_Display.elf
+Finished building: default.size.stdout
+ 
+
+04:59:26 Build Finished. 0 errors, 0 warnings. (took 140ms)
+

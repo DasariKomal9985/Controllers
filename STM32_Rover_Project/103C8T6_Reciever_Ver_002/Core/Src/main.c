@@ -1,0 +1,449 @@
+/* USER CODE BEGIN Header */
+/**
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : nRF24 Receiver (STM32F103)
+ ******************************************************************************
+ * Wiring:
+ *   PA5 -> SCK
+ *   PA6 -> MISO
+ *   PA7 -> MOSI
+ *   PB12 -> CSN
+ *   PB13 -> CE
+ *
+ * IMPORTANT:
+ *   Receiver uses Dynamic Payload Length (DPL)
+ *   Must match transmitter settings.
+ *
+ ******************************************************************************
+ */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include <string.h>
+#include <stdio.h>
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+/* NRF24 Pins */
+#define CE_PORT    GPIOB
+#define CE_PIN     GPIO_PIN_13
+#define CSN_PORT   GPIOB
+#define CSN_PIN    GPIO_PIN_12
+
+#define CE_HIGH()  HAL_GPIO_WritePin(CE_PORT, CE_PIN, GPIO_PIN_SET)
+#define CE_LOW()   HAL_GPIO_WritePin(CE_PORT, CE_PIN, GPIO_PIN_RESET)
+#define CSN_HIGH() HAL_GPIO_WritePin(CSN_PORT, CSN_PIN, GPIO_PIN_SET)
+#define CSN_LOW()  HAL_GPIO_WritePin(CSN_PORT, CSN_PIN, GPIO_PIN_RESET)
+
+/* NRF Commands */
+#define CMD_R_REGISTER       0x00
+#define CMD_W_REGISTER       0x20
+#define CMD_R_RX_PAYLOAD     0x61
+#define CMD_FLUSH_RX         0xE2
+
+/* NRF Registers */
+#define REG_CONFIG           0x00
+#define REG_EN_AA            0x01
+#define REG_EN_RXADDR        0x02
+#define REG_SETUP_AW         0x03
+#define REG_RF_CH            0x05
+#define REG_RF_SETUP         0x06
+#define REG_STATUS           0x07
+#define REG_RX_ADDR_P0     0x0A
+#define REG_TX_ADDR        0x10      // <<< ADD THIS
+#define REG_RX_PW_P0       0x11
+#define REG_DYNPD            0x1C
+#define REG_FEATURE          0x1D
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi1;
+
+UART_HandleTypeDef huart1;
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_SPI1_Init(void);
+static void MX_USART1_UART_Init(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+/* USER CODE BEGIN 0 */
+
+static void UART1_Print(const char *s) {
+	HAL_UART_Transmit(&huart1, (uint8_t*) s, strlen(s), HAL_MAX_DELAY);
+}
+
+/* ============================================
+ SPI helpers
+ ============================================ */
+static uint8_t nrf_read_reg(uint8_t reg) {
+	uint8_t cmd = CMD_R_REGISTER | (reg & 0x1F);
+	uint8_t val = 0xFF;
+
+	CSN_LOW();
+	HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+	HAL_SPI_Receive(&hspi1, &val, 1, HAL_MAX_DELAY);
+	CSN_HIGH();
+
+	return val;
+}
+
+static void nrf_write_reg(uint8_t reg, uint8_t val) {
+	uint8_t buf[2] = { CMD_W_REGISTER | (reg & 0x1F), val };
+
+	CSN_LOW();
+	HAL_SPI_Transmit(&hspi1, buf, 2, HAL_MAX_DELAY);
+	CSN_HIGH();
+}
+
+static void nrf_write_addr(uint8_t reg, const uint8_t *addr) {
+	uint8_t cmd = CMD_W_REGISTER | (reg & 0x1F);
+
+	CSN_LOW();
+	HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+	HAL_SPI_Transmit(&hspi1, (uint8_t*) addr, 5, HAL_MAX_DELAY);
+	CSN_HIGH();
+}
+
+/* ============================================
+ ENABLE DYNAMIC PAYLOAD (required for DPL)
+ ============================================ */
+static void nrf_activate(void) {
+	uint8_t cmd[2] = { 0x50, 0x73 };
+
+	CSN_LOW();
+	HAL_SPI_Transmit(&hspi1, cmd, 2, HAL_MAX_DELAY);
+	CSN_HIGH();
+}
+
+/* ============================================
+ Initialize nRF24 in RX mode
+ ============================================ */
+static void nrf_init_rx(void) {
+	CE_LOW();
+	CSN_HIGH();
+	HAL_Delay(5);
+
+	uint8_t addr[5] = { 'R', 'X', 'A', 'A', 'A' };
+
+	/* Set addresses */
+	nrf_write_addr(REG_RX_ADDR_P0, addr);
+	nrf_write_addr(REG_TX_ADDR, addr);
+
+	/* RF settings */
+	nrf_write_reg(REG_RF_CH, 40);      // same as TX
+	nrf_write_reg(REG_RF_SETUP, 0x06); // 1 Mbps, 0 dBm
+
+	/* Enable auto-ack + pipe 0 */
+	nrf_write_reg(REG_EN_AA, 0x01);
+	nrf_write_reg(REG_EN_RXADDR, 0x01);
+
+	/* Set address width = 5 bytes */
+	nrf_write_reg(REG_SETUP_AW, 0x03);
+
+	/* --- Enable Dynamic Payload --- */
+	nrf_activate();                         // required for clones
+	nrf_write_reg(REG_FEATURE, 0x04);       // EN_DPL
+	nrf_write_reg(REG_DYNPD, 0x01);         // dynamic payload pipe 0
+
+	/* CONFIG -> RX mode */
+	nrf_write_reg(REG_CONFIG, 0x0F);        // PWR_UP + PRIM_RX + CRC
+	HAL_Delay(5);
+
+	/* Clear interrupts */
+	nrf_write_reg(REG_STATUS, 0x70);
+
+	CE_HIGH();
+	HAL_Delay(5);
+
+	UART1_Print("NRF24 RX READY (DPL ENABLED)\r\n");
+}
+
+/* ============================================
+ Read RX Payload (dynamic)
+ ============================================ */
+static uint8_t nrf_read_payload(uint8_t *data) {
+	uint8_t cmd = CMD_R_RX_PAYLOAD;
+
+	CSN_LOW();
+	HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+	HAL_SPI_Receive(&hspi1, data, 32, HAL_MAX_DELAY);
+	CSN_HIGH();
+
+	nrf_write_reg(REG_STATUS, 0x40); // Clear RX_DR
+
+	return 1;
+}
+
+/* ============================================
+ Debug dump registers
+ ============================================ */
+static void nrf_dump(void) {
+	char msg[64];
+
+	sprintf(msg, "CFG=%02X CH=%02X RF=%02X STAT=%02X FEAT=%02X DYN=%02X\r\n",
+			nrf_read_reg(REG_CONFIG), nrf_read_reg(REG_RF_CH),
+			nrf_read_reg(REG_RF_SETUP), nrf_read_reg(REG_STATUS),
+			nrf_read_reg(REG_FEATURE), nrf_read_reg(REG_DYNPD));
+	UART1_Print(msg);
+}
+
+/* ============================================
+ Poll for received data
+ ============================================ */
+static void nrf_loop(void) {
+	if (nrf_read_reg(REG_STATUS) & 0x40)   // RX_DR flag
+			{
+		uint8_t buf[33] = { 0 };
+		nrf_read_payload(buf);
+
+		UART1_Print("RX: ");
+		UART1_Print((char*) buf);
+		UART1_Print("\r\n");
+	}
+}
+
+/* USER CODE END 0 */
+
+/* USER CODE END 0 */
+
+/**
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
+
+	/* USER CODE BEGIN 1 */
+
+	/* USER CODE END 1 */
+
+	/* MCU Configuration--------------------------------------------------------*/
+
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
+
+	/* USER CODE BEGIN Init */
+
+	/* USER CODE END Init */
+
+	/* Configure the system clock */
+	SystemClock_Config();
+
+	/* USER CODE BEGIN SysInit */
+
+	/* USER CODE END SysInit */
+
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_SPI1_Init();
+	MX_USART1_UART_Init();
+	/* USER CODE BEGIN 2 */
+	UART1_Print("\r\n=== NRF RECEIVER START ===\r\n");
+
+	nrf_init_rx();
+	nrf_dump();
+	/* USER CODE END 2 */
+
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		/* USER CODE END WHILE */
+
+		/* USER CODE BEGIN 3 */
+		nrf_loop();
+		HAL_Delay(2);
+
+	}
+	/* USER CODE END 3 */
+}
+
+/**
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
+
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
+		Error_Handler();
+	}
+}
+
+/**
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI1_Init(void) {
+
+	/* USER CODE BEGIN SPI1_Init 0 */
+
+	/* USER CODE END SPI1_Init 0 */
+
+	/* USER CODE BEGIN SPI1_Init 1 */
+
+	/* USER CODE END SPI1_Init 1 */
+	/* SPI1 parameter configuration*/
+	hspi1.Instance = SPI1;
+	hspi1.Init.Mode = SPI_MODE_MASTER;
+	hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi1.Init.CRCPolynomial = 10;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN SPI1_Init 2 */
+
+	/* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+ * @brief USART1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_USART1_UART_Init(void) {
+
+	/* USER CODE BEGIN USART1_Init 0 */
+
+	/* USER CODE END USART1_Init 0 */
+
+	/* USER CODE BEGIN USART1_Init 1 */
+
+	/* USER CODE END USART1_Init 1 */
+	huart1.Instance = USART1;
+	huart1.Init.BaudRate = 115200;
+	huart1.Init.WordLength = UART_WORDLENGTH_8B;
+	huart1.Init.StopBits = UART_STOPBITS_1;
+	huart1.Init.Parity = UART_PARITY_NONE;
+	huart1.Init.Mode = UART_MODE_TX_RX;
+	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+	if (HAL_UART_Init(&huart1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN USART1_Init 2 */
+
+	/* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_GPIO_Init(void) {
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	/* USER CODE BEGIN MX_GPIO_Init_1 */
+
+	/* USER CODE END MX_GPIO_Init_1 */
+
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12 | GPIO_PIN_13, GPIO_PIN_RESET);
+
+	/*Configure GPIO pins : PB12 PB13 */
+	GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+	/* USER CODE BEGIN MX_GPIO_Init_2 */
+
+	/* USER CODE END MX_GPIO_Init_2 */
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
+	/* USER CODE END Error_Handler_Debug */
+}
+#ifdef USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */

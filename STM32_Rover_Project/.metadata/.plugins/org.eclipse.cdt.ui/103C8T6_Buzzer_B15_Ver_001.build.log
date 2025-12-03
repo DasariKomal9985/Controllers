@@ -1,0 +1,10 @@
+17:42:01 **** Incremental Build of configuration Debug for project 103C8T6_Buzzer_B15_Ver_001 ****
+make -j20 all 
+arm-none-eabi-size  103C8T6_Buzzer_B15_Ver_001.elf 
+   text	   data	    bss	    dec	    hex	filename
+   4664	     12	   1572	   6248	   1868	103C8T6_Buzzer_B15_Ver_001.elf
+Finished building: default.size.stdout
+ 
+
+17:42:01 Build Finished. 0 errors, 0 warnings. (took 138ms)
+
